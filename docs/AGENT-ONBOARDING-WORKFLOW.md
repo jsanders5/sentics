@@ -112,13 +112,12 @@ This document outlines how to use the 9 specialized agents throughout the build 
    - Failure tests (CoinGecko timeout, missing data)
    - Acceptance criteria: output matches expected schema, scores are between 0–100
 
-6. **Infrastructure DevOps Specialist** provides containerization:
-   - Docker image for Agent 1 (Python 3.11, dependencies) or Lambda function
-   - AWS Lambda function definition (memory, CPU, timeout) or ECS task definition
-   - EventBridge cron rule: **10 AM EST daily** (primary schedule)
-   - Manual trigger via admin dashboard API (Lambda on-demand invocation)
-   - Logging and monitoring setup (CloudWatch → Slack alerts on failure)
-   - Cost tracking: Lambda pricing (~$1–5/month for daily runs)
+6. **Infrastructure DevOps Specialist** provides serverless setup:
+   - Vercel Serverless Function (Python 3.11 runtime)
+   - Vercel Cron rule: **10 AM EST daily** (primary schedule)
+   - Manual trigger via admin dashboard API (Vercel Function on-demand)
+   - Logging setup: Vercel Logs + Sentry for error tracking
+   - Cost tracking: Vercel free tier (included, no additional cost)
 
 **Checkpoint:** Agent 1 passes all tests and produces valid category scores with >= 55% projected hit rate. **Note: Validate hit rate with 24h stale data (tolerance: < 2% degradation vs. 6-hour-fresh projection).**
 
@@ -221,11 +220,14 @@ This document outlines how to use the 9 specialized agents throughout the build 
    - Last updated timestamp visible; next scheduled update shown (10 AM EST)
 
 3. **Infrastructure DevOps Specialist** provisions:
-   - **Frontend:** Vercel Free tier (auto-scaling, included Postgres)
+   - **Frontend:** Vercel Free tier (auto-scaling, serverless functions included)
+   - **Backend Functions:** Vercel Serverless Functions (Python 3.11 runtime)
+   - **Scheduling:** Vercel Cron (built-in, no external service)
    - **Cache:** Upstash Free tier (10K commands/day)
    - **Database:** Supabase Free tier (500MB, pay-as-you-go after)
-   - Vercel Analytics for performance monitoring (built-in)
-   - Manual trigger API endpoint: `/api/trigger-pipeline` → Lambda function (async job)
+   - **Logging:** Vercel Logs + Sentry (free tier error tracking)
+   - **Monitoring:** Vercel Analytics + Sentry performance tracking (built-in)
+   - Manual trigger endpoint: `/api/trigger-pipeline` (Vercel Function, async)
 
 4. **QA Test Automation Specialist** validates:
    - Responsiveness: desktop/tablet/mobile layouts correct
@@ -251,10 +253,11 @@ This document outlines how to use the 9 specialized agents throughout the build 
 2. **Engineer builds** internal admin dashboard:
    - Authentication (admin-only access)
    - Run log table with relevant fields (scheduled + manual trigger runs)
-   - **Manual Trigger button:** Force immediate Agent 1 → 2 → 3 run (Lambda on-demand)
-   - Error drill-down with full stack traces
+   - **Manual Trigger button:** Force immediate Agent 1 → 2 → 3 run (Vercel Function on-demand)
+   - Error drill-down with full stack traces (integrated with Sentry)
    - Category threshold visualization (Agent 1 scores vs. 55 threshold)
-   - Cost tracking: Lambda invocations, API call count, LLM tokens consumed
+   - Cost tracking: Vercel function invocations, API call count, LLM tokens consumed
+   - System health status: Last successful run time, error rate, uptime indicator
 
 3. **QA Test Automation Specialist** verifies:
    - Only admins can access

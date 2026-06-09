@@ -1,14 +1,14 @@
 # Sentics Trading Intelligence — Phase 1 Technical Specifications
 
 **Date:** June 9, 2026  
-**Version:** 1.0  
+**Version:** 2.0 (AWS-Free)  
 **Status:** Ready for development  
 
 ---
 
 ## Executive Summary
 
-Phase 1 is a **cost-optimized MVP** running on free/cheap cloud tiers with a single daily scheduled update (10 AM EST) plus manual on-demand triggering capability. The target is rapid validation of product-market fit with <$150/month operating costs, not production scale.
+Phase 1 is a **cost-optimized, AWS-free MVP** running entirely on Vercel + Supabase with a single daily scheduled update (10 AM EST) plus manual on-demand triggering. The target is rapid validation of product-market fit with <$150/month operating costs, minimal vendor lock-in, and zero AWS complexity.
 
 ---
 
@@ -16,73 +16,70 @@ Phase 1 is a **cost-optimized MVP** running on free/cheap cloud tiers with a sin
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    User Browser (Client)                     │
-└─────────────────┬───────────────────────────────────────────┘
-                  │ HTTPS
-                  ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Frontend (Vercel)                               │
-│  ├─ Next.js/React dashboard                                 │
-│  ├─ Client-side filtering (TH, category, confidence)        │
-│  ├─ Staleness banner + [Force Update] button                │
-│  └─ "Last updated 10 AM EST" timestamp                      │
-└─────┬────────────────────────────────┬──────────────────────┘
-      │ Read cache (Upstash Redis)     │ API calls
-      │                                │
-      ▼                                ▼
-┌──────────────────────┐   ┌────────────────────────────────┐
-│ Cache Layer          │   │ API Lambda Functions            │
-│ (Upstash Free)       │   │ - GET /candidates             │
-│ ├─ Candidates TTL 90 │   │ - GET /categories             │
-│ │   min              │   │ - POST /api/trigger-pipeline  │
-│ └─ Fresh? Latest run │   └────┬─────────────────────────────┘
-└──────────┬───────────┘        │
-           │                    │
-           ▼                    ▼
-      ┌──────────────────────────────────┐
-      │ Database (Supabase Free)         │
-      │ ├─ candidates table              │
-      │ ├─ categories table              │
-      │ ├─ pipeline_runs log             │
-      │ └─ users/sessions (Phase 2)      │
-      └──────────────────────────────────┘
-           ▲
-           │ Writes
-           │
-      ┌────┴─────────────────────────────┐
-      │                                   │
-      ▼                                   ▼
-┌──────────────────────┐   ┌──────────────────────┐
-│ EventBridge          │   │ Manual Trigger API   │
-│ Cron Rule            │   │ (Lambda on-demand)   │
-│ ├─ 10 AM EST daily   │   │ Cost: ~$0.20/call    │
-│ └─ Invokes Agent 1   │   │ (user accepts cost)  │
-└──────────┬───────────┘   └──────────┬───────────┘
-           │                          │
-           └────────────┬─────────────┘
-                        │
-                        ▼
-      ┌─────────────────────────────────┐
-      │ Agent Pipeline (AWS Lambda)      │
-      │ ├─ Agent 1: Category Momentum    │
-      │ ├─ Agent 2: Candidate Discovery  │
-      │ └─ Agent 3: AI Synthesis (Claude)│
-      └────────────┬────────────────────┘
+│                    User Browser                              │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ HTTPS
+                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│          Frontend + Backend (Vercel)                          │
+│  ├─ Next.js/React dashboard                                  │
+│  ├─ Vercel Serverless Functions (Python)                     │
+│  │   ├─ GET /api/candidates                                  │
+│  │   ├─ GET /api/categories                                  │
+│  │   ├─ POST /api/trigger-pipeline (async, user-initiated)   │
+│  │   └─ Scheduled handlers (Vercel Cron)                     │
+│  └─ Vercel built-in logging + analytics                      │
+└──────┬──────────────────────────┬────────────────┬───────────┘
+       │                          │                │
+       │ Redis cache reads        │ DB reads       │ Cron events
+       │ (Upstash Free)           │                │
+       ▼                          ▼                ▼
+   ┌────────────┐   ┌──────────────────────┐  ┌──────────────┐
+   │ Upstash    │   │ Database             │  │ Vercel Cron  │
+   │ Redis      │   │ (Supabase Free)      │  │              │
+   │ ├─ 10K     │   │ ├─ candidates        │  │ 10 AM EST    │
+   │ │ cmds/day │   │ ├─ categories        │  │ daily        │
+   │ └─ 90min   │   │ ├─ pipeline_runs     │  │              │
+   │   TTL      │   │ └─ sessions (Ph 2)   │  │ Triggers:    │
+   └──────┬─────┘   └──────────┬───────────┘  │ /api/run-    │
+          │                    │               │ pipeline     │
+          └────────────┬───────┴───────────────┘ (async)      │
+                       │                         └──────┬─────┘
+                       │
+                       ▼
+      ┌─────────────────────────────────────┐
+      │ Agent Pipeline (Vercel Functions)    │
+      │ (Python 3.11 runtime)                │
+      │                                      │
+      │ ├─ Agent 1: Category Momentum        │
+      │ │   Input: CoinGecko price/volume    │
+      │ │   Output: category scores >= 55    │
+      │                                      │
+      │ ├─ Agent 2: Candidate Discovery      │
+      │ │   Input: category scores + coins   │
+      │ │   Output: up to 50 ranked coins    │
+      │                                      │
+      │ └─ Agent 3: AI Synthesis             │
+      │     Input: candidates + context      │
+      │     Output: rationales (Claude API)  │
+      │                                      │
+      │ All errors → Sentry (logging)        │
+      └────────────┬─────────────────────────┘
                    │
                    ▼
-      ┌─────────────────────────────────┐
-      │ External APIs (Free/Pro tiers)   │
-      │ ├─ CoinGecko Free API            │
-      │ ├─ NewsAPI Free (sentiment)      │
-      │ └─ Anthropic Claude API          │
-      └─────────────────────────────────┘
+      ┌─────────────────────────────────────┐
+      │ External APIs                        │
+      │ ├─ CoinGecko Free API                │
+      │ ├─ NewsAPI Free (sentiment)          │
+      │ └─ Anthropic Claude API              │
+      └─────────────────────────────────────┘
 ```
 
 ---
 
 ## Component Details
 
-### 1. Frontend (Vercel Free Tier)
+### 1. Frontend (Vercel Next.js)
 
 **Stack:**
 - Framework: Next.js 14 (React 18)
@@ -110,11 +107,79 @@ Phase 1 is a **cost-optimized MVP** running on free/cheap cloud tiers with a sin
 - Screen reader labels (aria-label, aria-labelledby)
 - Color contrast >= 4.5:1 for text
 
-### 2. Cache Layer (Upstash Redis Free Tier)
+### 2. Backend: Vercel Serverless Functions
+
+**Configuration:**
+- Runtime: Python 3.11 or Node.js (Python for agent code)
+- Memory: 1024 MB (sufficient for agent pipeline)
+- Timeout: 600 seconds (10 min max for full run)
+- Ephemeral storage: 512 MB (for intermediate data)
+
+**Functions:**
+
+| Endpoint | Method | Purpose | Runtime |
+|---|---|---|---|
+| `/api/candidates` | GET | Fetch latest candidates from database/cache | < 500ms |
+| `/api/categories` | GET | Fetch latest category scores | < 500ms |
+| `/api/trigger-pipeline` | POST | Manually trigger full Agent 1 → 2 → 3 run | Async, 2–3 min |
+| `/api/run-pipeline` (internal) | POST | Scheduled executor (called by Vercel Cron) | Async, 2–3 min |
+
+**Environment Variables (in Vercel dashboard):**
+```
+COINGECKO_API_KEY=<free tier key>
+NEWSAPI_KEY=<free tier key>
+ANTHROPIC_API_KEY=<secret>
+DATABASE_URL=<Supabase connection string>
+REDIS_URL=<Upstash connection URL>
+SENTRY_DSN=<sentry error tracking>
+AGENT_ENV=production
+LOG_LEVEL=INFO
+```
+
+**Error Handling:**
+- Timeouts: Write partial results if Agent 3 times out (use previous rationales for missing candidates)
+- API failures: Log to Sentry; do NOT write invalid data to database
+- Retry logic: 3 attempts with exponential backoff for transient errors
+
+**Cost:** Free tier sufficient for MVP (up to 100 function invocations/month free, we use ~30)
+
+### 3. Scheduled Execution (Vercel Cron)
+
+**Configuration:**
+- Built-in Vercel Cron (no external service needed)
+- Add file: `vercel.json` at project root
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/run-pipeline",
+      "schedule": "0 15 * * *"
+    }
+  ]
+}
+```
+
+**Cron Rule:**
+```
+0 15 * * *    # 10 AM EST = 3 PM UTC, every day
+```
+
+**Execution:**
+1. Vercel invokes `/api/run-pipeline` at 10 AM EST
+2. Function starts Agent 1 → 2 → 3 pipeline
+3. Returns immediately (async job)
+4. Results written to database when complete
+
+**Alerting:**
+- On failure: Send error to Sentry (automatic)
+- Slack integration via Sentry (configured in Sentry dashboard)
+
+### 4. Cache Layer (Upstash Redis Free Tier)
 
 **Configuration:**
 - Plan: Free tier (10K commands/day, usually sufficient)
-- Region: Same as Vercel (us-east-1 default)
+- Region: us-east-1 (same as Vercel default)
 - TTL: 90 minutes (refresh at 10:30 AM EST; latest data served until ~12 PM)
 
 **Data Cached:**
@@ -126,7 +191,7 @@ Phase 1 is a **cost-optimized MVP** running on free/cheap cloud tiers with a sin
 
 **Cost:** $0 (within free tier for MVP traffic)
 
-### 3. Database (Supabase Free Tier)
+### 5. Database (Supabase Free Tier)
 
 **Configuration:**
 - Plan: Free tier (500MB storage, shared infrastructure)
@@ -147,139 +212,135 @@ Phase 1 is a **cost-optimized MVP** running on free/cheap cloud tiers with a sin
 - If queries slow: add Supabase indices on `updated_at`, `category`
 - Cost cap: $50/month overage before alerting
 
-### 4. Agent Pipeline (AWS Lambda)
+### 6. Agent Pipeline Execution Flow
 
-**Configuration:**
-- Function: `STI-Agent-Pipeline` (single function, sequential execution)
-- Memory: 1024 MB (sufficient for Python environment)
-- Timeout: 600 seconds (10 min max for full run)
-- Ephemeral storage: 512 MB (for intermediate data)
-- Runtime: Python 3.11
-- VPC: None (Lambda not in VPC to minimize latency)
+**Trigger:** Either scheduled (Vercel Cron @ 10 AM EST) or manual (user clicks [Force Update])
 
-**Environment Variables:**
-```
-COINGECKO_API_KEY=<free tier key>
-NEWSAPI_KEY=<free tier key>
-ANTHROPIC_API_KEY=<secret from Secrets Manager>
-DATABASE_URL=<Supabase connection string, from Secrets Manager>
-REDIS_URL=<Upstash connection URL, from Secrets Manager>
-AGENT_ENV=production
-LOG_LEVEL=INFO
-```
+**Execution (Python 3.11 in Vercel Function):**
 
-**Execution Flow:**
-1. Receive trigger (scheduled or manual)
-2. Agent 1: Fetch CoinGecko data → calculate category momentum scores
-3. Agent 2: Filter candidates (RSI, volume, MA) → rank by score
-4. Agent 3: Invoke Claude API for rationales (async batch, up to 25 at a time)
-5. Write to PostgreSQL + invalidate Redis cache
-6. Return: run_id, candidate count, execution time
-
-**Error Handling:**
-- Timeouts: Write partial results if Agent 3 times out (use previous rationales for missing candidates)
-- API failures: Log and alert; do NOT write invalid data to database
-- Retry logic: 3 attempts with exponential backoff for transient errors
-
-**Cost:**
-- Lambda: Free tier = 1M invocations/month (we use ~30 for daily + manual triggers)
-- Actual cost: < $1/month
-
-### 5. Scheduled Execution (EventBridge)
-
-**Cron Rule:**
-```
-cron(0 15 * * ? *)    # 10 AM EST = 3 PM UTC, daily
-```
-
-**Trigger:**
-- Target: Lambda function `STI-Agent-Pipeline`
-- Input: `{"trigger_type": "scheduled", "force": false}`
-- Retry: 1 attempt (no retries for scheduled runs; manual retry via button)
-- DLQ: Send failed invocations to SQS queue for manual inspection
-
-**Alerting:**
-- Failure: CloudWatch event → SNS → Slack notification to #ops channel
-
-### 6. Manual Trigger API (API Gateway + Lambda)
-
-**Endpoint:**
-```
-POST /api/trigger-pipeline
-Headers:
-  Authorization: Bearer <admin_token>
-  Content-Type: application/json
-Body:
-  {
-    "force": true
-  }
-```
-
-**Response:**
-```json
-{
-  "run_id": "run_20260609_153042",
-  "status": "queued",
-  "estimated_cost": "$0.20",
-  "estimated_duration_seconds": 120,
-  "message": "Pipeline triggered. Check status at /admin/runs/{run_id}"
-}
-```
-
-**Implementation:**
-- Auth: API key stored in Secrets Manager; validate before execution
-- Rate limit: Max 5 manual triggers per hour per user (prevent abuse)
-- Cost notification: Response shows estimated inference cost upfront
-- Async execution: Return immediately; client polls `/admin/runs/{run_id}` for status
-
-**Cost per Invocation:**
-- Lambda execution: negligible
-- CoinGecko API calls: ~$0.000 (free tier)
-- Claude inference: ~$0.15–0.25 depending on candidate count + rationale length
-- **User sees:** "This will cost approximately $0.20. Continue? [Yes] [Cancel]"
-
-### 7. Admin Dashboard
-
-**Features:**
-- **Auth:** Admin email + password (no OAuth for MVP)
-- **Run Logs:** Last 48 hours of pipeline runs (scheduled + manual)
-  - Columns: Run ID, Trigger Type, Status, Start Time, Duration, Candidate Count, Errors (if any)
-  - Filtering: by date, status, trigger type
-  - Detail: Click row → see full logs, error stack trace
-- **Manual Trigger:** Big red button: "Force Update Now" → confirm cost → execute
-- **Category Scores:** Real-time display of latest Agent 1 scores (vs. 55 threshold)
-- **Cost Tracking:** Running total for month, breakdown by Lambda + API + LLM
-- **Status:** Green/yellow/red indicator for system health (based on last successful run time)
-
-**Access:** `/admin` (protected by auth middleware)
-
-### 8. Data Flow Example (10 AM EST Daily Run)
-
-1. **EventBridge triggers** Lambda at 10 AM EST
-2. **Agent 1 runs:**
+1. **Agent 1: Category Momentum**
    - Fetch last 30 days of hourly OHLCV for top 50 coins (CoinGecko Free)
    - Fetch BTC dominance, market cap (CoinGecko Free)
    - Calculate: Price momentum, Volume momentum, Macro adjustment
    - Output: 10–20 categories with scores >= 55
-3. **Agent 2 runs:**
+   - Latency: ~30–45 seconds
+
+2. **Agent 2: Candidate Discovery**
    - For each passing category, fetch all coins in that category
    - Filter: RSI 40–72, Volume >= 1.3x 24h avg, Price >= both 20d and 50d MA
-   - Score: 50% technical + 50% category momentum (on-chain removed for Phase 1)
+   - Score: 50% technical + 50% category momentum
    - Output: Up to 50 ranked candidates
-4. **Agent 3 runs:**
+   - Latency: ~30–45 seconds
+
+3. **Agent 3: AI Synthesis**
    - For each candidate: invoke Claude with structured prompt
    - Inputs: symbol, price, technicals, category momentum, recent news
    - Output: time_horizon, confidence_tier, rationale (50–300 words)
    - Batch up to 25 at a time (stay under token limits)
-5. **Write to database:**
+   - Latency: ~60–120 seconds (depends on Claude API response time)
+
+4. **Write Results:**
    - `candidates` table: All candidates from Agent 3
    - `categories` table: Agent 1 category scores
    - `pipeline_runs` table: Metadata (timestamps, status, counts)
-6. **Invalidate cache:**
+
+5. **Invalidate Cache:**
    - Delete `candidates:latest` and `categories:latest` from Redis
    - Next API request will re-populate cache from fresh database read
-7. **Send success notification:**
-   - Slack message: "Pipeline succeeded. 47 candidates, 18 categories. Updated at 10:05 AM EST."
+
+6. **Logging:**
+   - All errors, timing, API call counts → Sentry (automatic)
+   - Function logs → Vercel Logs (automatic)
+   - DB query logs → Supabase Logs (visible in Supabase dashboard)
+
+**Total Execution Time:** 2–3 minutes
+
+---
+
+## Logging & Monitoring Strategy
+
+### Vercel Logs (Built-In)
+
+**What you see:**
+- All function execution logs (stdout/stderr)
+- HTTP request/response details
+- Function duration + memory usage
+- Cold start information
+- Errors and exceptions
+
+**Access:** Vercel dashboard → Project → Deployments → [Function name] → Logs
+
+**Cost:** Free, included with all plans
+
+### Sentry (Free Tier)
+
+**What you see:**
+- Error tracking + stack traces
+- Exception grouping (so duplicate errors show once)
+- Release tracking (which code version caused error)
+- Breadcrumbs (events leading up to error)
+- User context (if you add it)
+- Performance monitoring (function duration, API latency)
+
+**Setup:**
+```python
+import sentry_sdk
+sentry_sdk.init(dsn=os.getenv("SENTRY_DSN"))
+
+try:
+  # Your code here
+except Exception as e:
+  sentry_sdk.capture_exception(e)
+```
+
+**Alerts:**
+- Error threshold exceeded: Slack notification
+- New error type: Email notification
+- Performance degradation: Slack notification
+
+**Cost:** Free tier = 5,000 events/month (more than enough for MVP)
+
+### Supabase Logs
+
+**What you see:**
+- Database query logs (in dashboard)
+- Edge Function execution logs (if using Supabase Edge Functions)
+- Realtime subscription events
+
+**Access:** Supabase dashboard → Project → Logs → Edge Function Logs / Database Logs
+
+**Cost:** Free, included with all plans
+
+### Vercel Analytics (Built-In)
+
+**What you see:**
+- Web Vitals (LCP, CLS, FID, INP)
+- Real User Monitoring (from actual users)
+- Time to First Byte (TTFB)
+- Function response times by endpoint
+
+**Access:** Vercel dashboard → Project → Analytics
+
+**Cost:** Free, included with all plans
+
+---
+
+## Manual Trigger (User-Initiated Updates)
+
+**UI Flow:**
+1. User sees: "Last updated 10 AM EST. [Force Update] button." (in yellow banner)
+2. User clicks [Force Update]
+3. Modal appears: "Force an immediate update? This will cost approximately $0.20 in API + LLM costs. [Continue] [Cancel]"
+4. User clicks [Continue]
+5. POST `/api/trigger-pipeline` → Function queued
+6. Page shows: "Update in progress... (usually takes 2–3 minutes)"
+7. Dashboard refreshes automatically once complete (polling or WebSocket)
+
+**Implementation:**
+- Auth: Admin email + password (no OAuth for MVP)
+- Rate limit: Max 5 manual triggers per hour per user (prevent abuse)
+- Cost tracking: Cost estimate shown before user confirms
+- Async execution: POST returns immediately; client polls `/api/run-status/{run_id}` for progress
 
 ---
 
@@ -287,17 +348,17 @@ Body:
 
 ### Staleness Model
 
-| Time Since Update | Data Status | Indicator | Action |
+| Time Since Update | Data Status | Indicator | User Action |
 |---|---|---|---|
 | < 2 hours | Fresh | (none) | Latest data served from cache |
-| 2–12 hours | Stale | Yellow banner: "Last updated [time]. Next update: 10 AM EST." | Data served; button visible |
+| 2–12 hours | Stale | Yellow banner: "Last updated [time]. Next update: 10 AM EST. [Force Update]" | Data served; button visible |
 | > 12 hours | Very Stale | Red banner: "Data is > 12 hours old. Please [Force Update]." | Old data served; strong CTA |
 
 ### User Can Force Update Anytime
 - Dashboard shows: "Last updated 10 AM EST. [Force Update] button."
-- User clicks → modal: "Force an immediate update? This will cost ~$0.20 in API + LLM costs. [Continue] [Cancel]"
-- After confirmation → Lambda runs Agent 1 → 2 → 3, takes ~2 min
-- Dashboard refreshes automatically once complete (polling or WebSocket)
+- User clicks → cost confirmation
+- Pipeline runs immediately (~2–3 min)
+- Dashboard refreshes once complete
 
 ---
 
@@ -305,10 +366,10 @@ Body:
 
 | Component | Est. Monthly Cost | Notes |
 |---|---|---|
-| Vercel (frontend) | $0 | Free tier sufficient for MVP |
+| Vercel (frontend + functions) | $0 | Free tier sufficient for MVP |
 | Supabase (database) | $10–20 | Free tier + overages if > 500MB |
 | Upstash (cache) | $0 | Free tier (10K cmds/day) |
-| AWS Lambda | < $1 | ~30 invocations/month (scheduled + manual) |
+| Sentry (error tracking) | $0 | Free tier (5K events/month) |
 | CoinGecko API | $0 | Free tier (7.2K calls/month @ 1×/day) |
 | NewsAPI | $0 | Free tier (3K calls/month) |
 | Anthropic Claude | $50–100 | Variable: ~25 candidates × 1 run/day × ~150 tokens per rationale |
@@ -341,50 +402,51 @@ If 3+ metrics on track → greenlight Phase 2 planning.
 
 ## Monitoring & Alerts
 
-### CloudWatch Metrics
+### Sentry Error Alerts
+- Error rate threshold: > 10 errors/day → Slack notification
+- New error type detected → Email notification
+- Error regression (same error after fix) → Slack notification
 
-| Metric | Target | Alert Threshold |
-|---|---|---|
-| Pipeline success rate | >= 95% | < 90% for 2 consecutive runs |
-| Lambda execution time | < 180s | > 300s |
-| Database query latency | < 500ms p95 | > 1s p95 |
-| Cache hit rate | >= 90% | < 80% |
-| Cost (running total) | <= $150/mo | > $200 run rate |
+### Vercel Function Monitoring
+- Function timeout (> 300s): Logged to Sentry, Slack notification
+- Cold start time: Tracked in Vercel Analytics
+- Memory usage: Vercel tracks; alert if > 900MB consistently
 
-### Slack Alerts
+### Database Health
+- Query latency p95 > 1s: Check Supabase logs
+- Storage approaching 500MB: Upgrade to Pro or archive old runs
+- Connection pool exhausted: Supabase admin alerts
 
-- **Pipeline Success:** "✅ Pipeline complete. 47 candidates, 18 categories, 2m 15s."
-- **Pipeline Failure:** "❌ Pipeline failed at Agent 3 (Claude API timeout). Previous data served. [View Logs]"
-- **Cost Alert:** "💰 Cost trend: $180/month projected (vs. $150 budget). Review usage."
-
-### Admin Dashboard Health Indicator
-
-- 🟢 Green: Last successful run < 2 hours ago
-- 🟡 Yellow: Last successful run 2–12 hours ago
-- 🔴 Red: Last successful run > 12 hours ago OR last 3 runs all failed
+### Cost Tracking
+- Vercel dashboard: View function execution counts
+- Supabase dashboard: View storage + overage usage
+- Sentry dashboard: View event quota usage
 
 ---
 
 ## Security
 
-### API Key Management
-- All keys stored in **AWS Secrets Manager** (never in code or `.env` files)
-- Rotated quarterly
-- Access logged to CloudTrail
+### Environment Variables (Vercel)
+- All API keys stored in Vercel Environment Variables (not in `.env.local`)
+- Keys available only to functions, not exposed to client
+- Rotated quarterly via Vercel dashboard
+- Audit log: Vercel tracks who accessed which secret when
 
 ### Authentication
-- Admin dashboard: email + password + TOTP (optional, Phase 1.1)
-- Public dashboard: no auth required (free product, no login)
+- Admin dashboard: Email + password (no OAuth for MVP)
+- Public dashboard: No auth required (free product, all-anonymous)
+- Session management: Server-side session IDs (Phase 2)
 
 ### Network
-- HTTPS enforced (Vercel auto-handles)
-- Rate limiting: 100 requests/min per IP (Vercel middleware or custom Lambda)
+- HTTPS enforced by default (Vercel)
+- Rate limiting: Vercel middleware (100 requests/min per IP)
 - No sensitive data in logs (API keys, user data stripped)
+- Log retention: 30 days (Vercel auto-deletes)
 
 ### Data Privacy
-- Session IDs: server-side tracking (no cookies storing PII)
+- Session IDs: Server-side tracking (no PII in browser)
 - No user account data Phase 1 (all-anonymous usage)
-- Logs: 30-day retention, auto-delete
+- Logs: 30-day retention by default (Sentry, Vercel)
 
 ---
 
@@ -393,34 +455,39 @@ If 3+ metrics on track → greenlight Phase 2 planning.
 ### Git Workflow
 - Branch: `main` (always deployable)
 - PRs: Required review before merge to main
-- Deploy: Vercel auto-deploys on merge to main
-- Lambda: Manual deploy via AWS CLI (post-testing)
+- Deploy: Vercel auto-deploys on merge to main (automatic)
+- Functions: Updated automatically with main branch
 
 ### Testing Before Deploy
-- Unit tests: Agent scoring logic (Python unittest)
-- Integration tests: Full pipeline against live CoinGecko Free API (AWS SAM local)
+- Unit tests: Agent scoring logic (Python pytest)
+- Integration tests: Full pipeline against live CoinGecko Free API
 - Frontend tests: React component rendering (Jest)
-- E2E tests: Dashboard load → filter → detail panel open (Playwright, weekly post-launch)
+- E2E tests: Dashboard load → filter → detail panel (Playwright, weekly post-launch)
 
 ### Rollback
 - Frontend: Vercel auto-rollback to previous deployment (one-click)
-- Lambda: Manual version management; keep previous version for 1-week rollback window
+- Functions: Vercel version management; keep previous version for 1-week rollback window
 - Database: Daily automated backups (Supabase); manual restore if needed
+
+### Monitoring Deployments
+- Vercel dashboard: See all deployments + logs
+- Sentry: Track errors per release (shows which code version caused issue)
+- Analytics: Real User Monitoring shows if users affected by new version
 
 ---
 
 ## Runbook: Common Issues
 
 ### "Pipeline hasn't run in 6+ hours"
-1. Check CloudWatch EventBridge rule execution history
-2. Check Lambda execution logs (`/aws/lambda/STI-Agent-Pipeline`)
+1. Check Vercel Cron execution: Vercel dashboard → Crons
+2. Check Vercel Function logs: See error details
 3. If CoinGecko API down: Check CoinGecko status page
 4. Manual trigger: Click [Force Update] in admin dashboard
-5. If still failing: Page on-call engineer
+5. If still failing: Check Sentry for error details
 
 ### "Dashboard says 'stale data > 12 hours'"
 1. Check last successful pipeline run in admin dashboard
-2. If last run failed: Check error logs
+2. If last run failed: Check Sentry for error logs
 3. Likely cause: CoinGecko API rate limit or Claude API quota
 4. Mitigation: Click [Force Update] to retry
 
@@ -435,13 +502,15 @@ If 3+ metrics on track → greenlight Phase 2 planning.
 ## Next Steps Before Development
 
 - [ ] Approve $150/month budget ceiling
-- [ ] Verify CoinGecko Free API: confirm 7.2K calls/month fits (contact their support if unclear)
-- [ ] Verify Supabase free tier: confirm 500MB storage + overage pricing
-- [ ] Set up AWS account structures (Secrets Manager, Lambda, EventBridge, CloudWatch)
-- [ ] Create Vercel project skeleton
+- [ ] Verify CoinGecko Free API: confirm 7.2K calls/month fits (contact their support)
+- [ ] Set up Sentry account (free tier, takes 5 min)
+- [ ] Create Vercel project from Next.js template
+- [ ] Create Supabase project (free tier)
+- [ ] Create Upstash Redis instance (free tier)
 - [ ] Legal review: Confirm no RIA registration required (Q1 decision)
 - [ ] Prepare backtest data: Validate hit rate with 24h stale data (tolerance: < 2% degradation)
 
 ---
 
-**Prepared by:** Engineering team based on cost-optimized architecture decision (June 9, 2026)
+**Architecture:** 100% Vercel + Supabase (zero AWS complexity)  
+**Prepared by:** Engineering team (June 9, 2026)
