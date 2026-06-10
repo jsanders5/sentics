@@ -5,8 +5,14 @@ POST /api/run-pipeline - Trigger the Agent 1 → 2 → 3 pipeline.
     - trigger_type: "scheduled" | "manual" (default: "manual")
 """
 
+import sys
+import os
+
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
+
+# Ensure lib module can be imported from the current directory
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from lib.agents.pipeline import run_pipeline
 
