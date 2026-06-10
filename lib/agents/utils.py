@@ -181,6 +181,7 @@ def insert_categories(categories: List[Dict]):
     try:
         url = f"{SUPABASE_URL}/rest/v1/categories"
         headers = get_supabase_headers()
+        headers["Prefer"] = "resolution=merge"
 
         for category in categories:
             data = {
@@ -190,7 +191,7 @@ def insert_categories(categories: List[Dict]):
                 "updated_at": datetime.utcnow().isoformat()
             }
 
-            # Upsert: try to update, if not exists insert
+            # Upsert: merge if exists, insert if new
             response = requests.post(
                 url,
                 json=data,
