@@ -6,7 +6,6 @@ Handles: API calls, database operations, caching, logging.
 import os
 import json
 import requests
-import psycopg2
 import redis
 import sentry_sdk
 from datetime import datetime, timedelta
@@ -16,15 +15,17 @@ from decimal import Decimal
 # Initialize Sentry
 sentry_sdk.init(dsn=os.getenv("SENTRY_DSN"))
 
-# Database connection
-def get_db_connection():
-    """Connect to Supabase PostgreSQL."""
-    try:
-        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
-        return conn
-    except Exception as e:
-        sentry_sdk.capture_exception(e)
-        raise
+# Supabase REST API config
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY")
+
+def get_supabase_headers() -> Dict:
+    """Get headers for Supabase REST API requests."""
+    return {
+        "apikey": SUPABASE_SECRET_KEY,
+        "Authorization": f"Bearer {SUPABASE_SECRET_KEY}",
+        "Content-Type": "application/json"
+    }
 
 # Redis cache
 def get_redis_client():
@@ -85,116 +86,100 @@ def fetch_btc_dominance() -> float:
         sentry_sdk.capture_exception(e)
         return 0
 
-# Database operations
+# Database operations (via Supabase REST API)
 def insert_candidates(candidates: List[Dict]):
-    """Insert or update candidates in database."""
+    """Insert or update candidates in database via REST API."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        url = f"{SUPABASE_URL}/rest/v1/candidates"
+        headers = get_supabase_headers()
 
         for candidate in candidates:
-            cur.execute("""
-                INSERT INTO candidates
-                (symbol, name, category, time_horizon, confidence_tier, score,
-                 rationale, entry_type, entry_quality, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                ON CONFLICT (symbol) DO UPDATE SET
-                    category = EXCLUDED.category,
-                    time_horizon = EXCLUDED.time_horizon,
-                    confidence_tier = EXCLUDED.confidence_tier,
-                    score = EXCLUDED.score,
-                    rationale = EXCLUDED.rationale,
-                    entry_type = EXCLUDED.entry_type,
-                    entry_quality = EXCLUDED.entry_quality,
-                    updated_at = NOW()
-            """, (
-                candidate.get("symbol"),
-                candidate.get("name"),
-                candidate.get("category"),
-                candidate.get("time_horizon"),
-                candidate.get("confidence_tier"),
-                candidate.get("score"),
-                candidate.get("rationale"),
-                candidate.get("entry_type"),
-                candidate.get("entry_quality")
-            ))
+            data = {
+                "symbol": candidate.get("symbol"),
+                "name": candidate.get("name"),
+                "category": candidate.get("category"),
+                "time_horizon": candidate.get("time_horizon"),
+                "confidence_tier": candidate.get("confidence_tier"),
+                "score": candidate.get("score"),
+                "rationale": candidate.get("rationale"),
+                "entry_type": candidate.get("entry_type"),
+                "entry_quality": candidate.get("entry_quality"),
+                "updated_at": datetime.utcnow().isoformat()
+            }
 
-        conn.commit()
-        cur.close()
-        conn.close()
+            # Upsert: try to update, if not exists insert
+            response = requests.post(
+                url,
+                json=data,
+                headers=headers,
+                params={"on_conflict": "symbol"}
+            )
+            response.raise_for_status()
+
     except Exception as e:
         sentry_sdk.capture_exception(e)
         raise
 
 def insert_categories(categories: List[Dict]):
-    """Insert or update categories in database."""
+    """Insert or update categories in database via REST API."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        url = f"{SUPABASE_URL}/rest/v1/categories"
+        headers = get_supabase_headers()
 
         for category in categories:
-            cur.execute("""
-                INSERT INTO categories (name, momentum_score, macro_adjustment, updated_at)
-                VALUES (%s, %s, %s, NOW())
-                ON CONFLICT (name) DO UPDATE SET
-                    momentum_score = EXCLUDED.momentum_score,
-                    macro_adjustment = EXCLUDED.macro_adjustment,
-                    updated_at = NOW()
-            """, (
-                category.get("name"),
-                category.get("momentum_score"),
-                category.get("macro_adjustment")
-            ))
+            data = {
+                "name": category.get("name"),
+                "momentum_score": category.get("momentum_score"),
+                "macro_adjustment": category.get("macro_adjustment"),
+                "updated_at": datetime.utcnow().isoformat()
+            }
 
-        conn.commit()
-        cur.close()
-        conn.close()
+            # Upsert: try to update, if not exists insert
+            response = requests.post(
+                url,
+                json=data,
+                headers=headers,
+                params={"on_conflict": "name"}
+            )
+            response.raise_for_status()
+
     except Exception as e:
         sentry_sdk.capture_exception(e)
         raise
 
 def insert_pipeline_run(run_id: str, trigger_type: str, status: str, error_msg: str = None):
-    """Log pipeline run metadata."""
+    """Log pipeline run metadata via REST API."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        url = f"{SUPABASE_URL}/rest/v1/pipeline_runs"
+        headers = get_supabase_headers()
 
-        cur.execute("""
-            INSERT INTO pipeline_runs (run_id, trigger_type, status, error_msg, created_at)
-            VALUES (%s, %s, %s, %s, NOW())
-        """, (run_id, trigger_type, status, error_msg))
+        data = {
+            "run_id": run_id,
+            "trigger_type": trigger_type,
+            "status": status,
+            "error_msg": error_msg,
+            "created_at": datetime.utcnow().isoformat()
+        }
 
-        conn.commit()
-        cur.close()
-        conn.close()
+        response = requests.post(url, json=data, headers=headers)
+        response.raise_for_status()
+
     except Exception as e:
         sentry_sdk.capture_exception(e)
         raise
 
 def get_latest_categories() -> List[Dict]:
-    """Fetch latest category scores from database."""
+    """Fetch latest category scores from database via REST API."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        url = f"{SUPABASE_URL}/rest/v1/categories"
+        headers = get_supabase_headers()
+        params = {"order": "updated_at.desc"}
 
-        cur.execute("""
-            SELECT name, momentum_score, macro_adjustment
-            FROM categories
-            ORDER BY updated_at DESC
-        """)
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
 
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+        return response.json() or []
 
-        return [
-            {
-                "name": row[0],
-                "momentum_score": float(row[1]),
-                "macro_adjustment": float(row[2]) if row[2] else 0
-            }
-            for row in rows
-        ]
     except Exception as e:
         sentry_sdk.capture_exception(e)
         return []

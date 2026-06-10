@@ -1,5 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { Pool } from 'pg';
 
 type Category = {
   name: string;
@@ -19,53 +18,54 @@ type ResponseData = {
 /**
  * GET /api/categories
  *
- * Returns latest category momentum scores from database.
- *
- * Response:
- * {
- *   "status": "success",
- *   "categories": [
- *     {
- *       "name": "Layer 1",
- *       "momentum_score": 72.5,
- *       "macro_adjustment": -5,
- *       "updated_at": "2026-06-10T15:02:30Z"
- *     },
- *     ...
- *   ],
- *   "count": 12,
- *   "last_updated": "2026-06-10T15:02:30Z"
- * }
+ * Returns latest category momentum scores from Supabase via REST API.
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ResponseData>
 ) {
-  // Only allow GET
   if (req.method !== 'GET') {
     return res.status(405).json({ status: 'error', error: 'Method not allowed' });
   }
 
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
-
   try {
-    const result = await pool.query(
-      'SELECT name, momentum_score, macro_adjustment, updated_at FROM categories ORDER BY momentum_score DESC'
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({
+        status: 'error',
+        error: 'Supabase configuration missing',
+      });
+    }
+
+    // Call Supabase REST API
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/categories?order=momentum_score.desc`,
+      {
+        method: 'GET',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+      }
     );
 
-    const categories: Category[] = result.rows.map((row) => ({
-      name: row.name,
-      momentum_score: parseFloat(row.momentum_score),
-      macro_adjustment: parseFloat(row.macro_adjustment || 0),
-      updated_at: row.updated_at.toISOString(),
-    }));
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Supabase error:', error);
+      return res.status(response.status).json({
+        status: 'error',
+        error: `Supabase API error: ${response.status}`,
+      });
+    }
 
-    // Get last updated timestamp
-    const last_updated = categories.length > 0
-      ? categories[0].updated_at
-      : new Date().toISOString();
+    const categories: Category[] = await response.json();
+
+    const last_updated =
+      categories.length > 0
+        ? categories[0].updated_at
+        : new Date().toISOString();
 
     return res.status(200).json({
       status: 'success',
@@ -79,7 +79,5 @@ export default async function handler(
       status: 'error',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-  } finally {
-    await pool.end();
   }
 }

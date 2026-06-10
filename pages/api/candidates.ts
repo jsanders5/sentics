@@ -1,5 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { Pool } from 'pg';
 
 type Candidate = {
   symbol: string;
@@ -26,70 +25,80 @@ type ResponseData = {
 /**
  * GET /api/candidates
  *
- * Returns latest candidates from database.
+ * Returns latest candidates from Supabase via REST API.
  *
  * Query params:
  * - limit: number (default: 50)
  * - category: string (filter by category, optional)
  * - time_horizon: string (Short|Medium|Long, optional)
  * - confidence: string (High|Medium|Low, optional)
- *
- * Response:
- * {
- *   "status": "success",
- *   "candidates": [...],
- *   "count": 47,
- *   "last_updated": "2026-06-10T15:02:30Z"
- * }
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ResponseData>
 ) {
-  // Only allow GET
   if (req.method !== 'GET') {
     return res.status(405).json({ status: 'error', error: 'Method not allowed' });
   }
 
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
-
   try {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({
+        status: 'error',
+        error: 'Supabase configuration missing',
+      });
+    }
+
     const limit = parseInt((req.query.limit as string) || '50', 10);
     const category = req.query.category as string | undefined;
     const time_horizon = req.query.time_horizon as string | undefined;
     const confidence = req.query.confidence as string | undefined;
 
-    // Build query
-    let query = 'SELECT * FROM candidates WHERE 1=1';
-    const params: any[] = [];
-    let paramIndex = 1;
+    // Build query string
+    let queryStr = `order=score.desc&limit=${limit}`;
 
     if (category) {
-      query += ` AND category = $${paramIndex++}`;
-      params.push(category);
+      queryStr += `&category=eq.${encodeURIComponent(category)}`;
     }
 
     if (time_horizon) {
-      query += ` AND time_horizon = $${paramIndex++}`;
-      params.push(time_horizon);
+      queryStr += `&time_horizon=eq.${encodeURIComponent(time_horizon)}`;
     }
 
     if (confidence) {
-      query += ` AND confidence_tier = $${paramIndex++}`;
-      params.push(confidence);
+      queryStr += `&confidence_tier=eq.${encodeURIComponent(confidence)}`;
     }
 
-    query += ` ORDER BY score DESC LIMIT $${paramIndex++}`;
-    params.push(limit);
+    // Call Supabase REST API
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/candidates?${queryStr}`,
+      {
+        method: 'GET',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+      }
+    );
 
-    const result = await pool.query(query, params);
-    const candidates: Candidate[] = result.rows;
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Supabase error:', error);
+      return res.status(response.status).json({
+        status: 'error',
+        error: `Supabase API error: ${response.status}`,
+      });
+    }
 
-    // Get last updated timestamp
-    const tsResult = await pool.query('SELECT MAX(updated_at) as last_updated FROM candidates');
-    const last_updated = tsResult.rows[0]?.last_updated?.toISOString() || new Date().toISOString();
+    const candidates: Candidate[] = await response.json();
+
+    const last_updated =
+      candidates.length > 0
+        ? candidates[0].updated_at
+        : new Date().toISOString();
 
     return res.status(200).json({
       status: 'success',
@@ -103,7 +112,5 @@ export default async function handler(
       status: 'error',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-  } finally {
-    await pool.end();
   }
 }
