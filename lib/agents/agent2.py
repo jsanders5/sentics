@@ -11,11 +11,12 @@ Scores candidates: 50% technical alignment + 50% category momentum
 Output: Up to 50 ranked candidates for Agent 3 synthesis
 """
 
-from typing import List, Dict
+from typing import List, Dict, Optional
 import statistics
 from .utils import (
     fetch_coingecko, fetch_market_chart, calculate_rsi,
-    calculate_moving_average, calculate_momentum, log_info, log_error
+    calculate_moving_average, calculate_momentum, log_info, log_error,
+    CATEGORY_TO_COINGECKO_ID
 )
 
 def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List[float]) -> bool:
@@ -135,72 +136,96 @@ def run(agent1_result: Dict, category_coins_map: Dict = None) -> Dict:
                 "low_signal_environment": True
             }
 
-        # Fetch category momentum scores for later use
+        # Fetch category momentum scores for later use (Agent 1 produces these)
         category_scores_map = {
             cat["name"]: cat["momentum_score"]
             for cat in agent1_result.get("categories", [])
         }
 
-        # Fetch top 50 coins by market cap (same universe as Agent 1)
-        all_coins = fetch_coingecko("/coins/markets", {
-            "vs_currency": "usd",
-            "order": "market_cap_desc",
-            "per_page": 50,
-            "page": 1,
-            "sparkline": False
-        })
-
         candidates = []
 
-        for coin in all_coins:
-            coin_id = coin.get("id")
-            symbol = coin.get("symbol", "").upper()
+        # For each passing category, fetch its coins from CoinGecko and filter.
+        # Using /coins/markets?category=<id> instead of fetching top-50 globally
+        # because the global top-50 has no category field — CoinGecko does not
+        # return category membership in /coins/markets without the category param.
+        for category_name in passing_categories:
+            coingecko_category_id = CATEGORY_TO_COINGECKO_ID.get(category_name)
+            if not coingecko_category_id:
+                log_error(f"No CoinGecko category ID mapped for '{category_name}'; skipping")
+                continue
+
+            log_info(f"Fetching coins for category '{category_name}' (CG id: {coingecko_category_id})")
 
             try:
-                # Get category
-                category = None
-                for cat in passing_categories:
-                    # Simple mapping: check if coin is in category (could be expanded)
-                    category = cat
-                    break
-
-                if not category:
-                    continue
-
-                # Fetch 30-day OHLCV
-                chart = fetch_market_chart(coin_id, days=30)
-                prices = [p[1] for p in chart.get("prices", [])]
-                volumes = [v[1] for v in chart.get("volumes", [])]
-
-                # Check technical filters
-                if not passes_technical_filters(coin, prices, volumes):
-                    continue
-
-                # Calculate scores
-                technical_score = calculate_technical_score(coin, prices, volumes)
-                category_momentum = category_scores_map.get(category, 50)
-
-                # Candidate score: 50% technical + 50% category momentum
-                candidate_score = (technical_score * 0.5) + (category_momentum * 0.5)
-                candidate_score = max(0, min(100, candidate_score))
-
-                candidate = {
-                    "symbol": symbol,
-                    "name": coin.get("name", ""),
-                    "category": category,
-                    "price": coin.get("current_price", 0),
-                    "rsi": round(calculate_rsi(prices, period=14), 2),
-                    "volume_ratio": round(sum(volumes[-1:]) / (statistics.mean(volumes[-30:]) if volumes else 1), 2),
-                    "technical_score": round(technical_score, 2),
-                    "category_momentum": round(category_momentum, 2),
-                    "candidate_score": round(candidate_score, 2)
-                }
-
-                candidates.append(candidate)
-
+                category_coins = fetch_coingecko("/coins/markets", {
+                    "vs_currency": "usd",
+                    "category": coingecko_category_id,
+                    "order": "market_cap_desc",
+                    "per_page": 100,  # broader than top-50 to not miss mid-caps in category
+                    "page": 1,
+                    "sparkline": False
+                })
             except Exception as e:
-                log_error(f"Error processing coin {coin_id}", e)
+                log_error(f"Failed to fetch coins for category '{category_name}'", e)
                 continue
+
+            category_momentum = category_scores_map.get(category_name, 50)
+            category_candidate_count = 0
+
+            for coin in category_coins:
+                coin_id = coin.get("id")
+                symbol = coin.get("symbol", "").upper()
+
+                try:
+                    # Fetch 30-day price and volume history for technical indicators
+                    chart = fetch_market_chart(coin_id, days=30)
+                    prices = [p[1] for p in chart.get("prices", [])]
+                    volumes = [v[1] for v in chart.get("volumes", [])]
+
+                    # Skip coins with insufficient history
+                    if len(prices) < 50:
+                        log_info(f"Skipping {symbol}: insufficient price history ({len(prices)} days)")
+                        continue
+
+                    # Apply technical filters: RSI 40-72, volume >= 1.3x, price > MAs
+                    if not passes_technical_filters(coin, prices, volumes):
+                        continue
+
+                    # Score this candidate
+                    technical_score = calculate_technical_score(coin, prices, volumes)
+
+                    # Candidate score: 50% technical alignment + 50% category momentum
+                    candidate_score = (technical_score * 0.5) + (category_momentum * 0.5)
+                    candidate_score = max(0, min(100, candidate_score))
+
+                    # Calculate volume ratio for reporting
+                    current_vol = volumes[-1] if volumes else 0
+                    avg_vol_30d = statistics.mean(volumes[-30:]) if len(volumes) >= 30 else current_vol
+                    volume_ratio = round(current_vol / avg_vol_30d, 2) if avg_vol_30d > 0 else 0
+
+                    candidate = {
+                        "symbol": symbol,
+                        "name": coin.get("name", ""),
+                        "category": category_name,
+                        "price": coin.get("current_price", 0),
+                        "rsi": round(calculate_rsi(prices, period=14), 2),
+                        "volume_ratio": volume_ratio,
+                        "technical_score": round(technical_score, 2),
+                        "category_momentum": round(category_momentum, 2),
+                        "candidate_score": round(candidate_score, 2)
+                    }
+
+                    candidates.append(candidate)
+                    category_candidate_count += 1
+
+                except Exception as e:
+                    log_error(f"Error processing coin {coin_id} in category '{category_name}'", e)
+                    continue
+
+            log_info(
+                f"Category '{category_name}': {category_candidate_count} candidates "
+                f"from {len(category_coins)} coins checked"
+            )
 
         # Sort by candidate score descending, limit to 50
         candidates.sort(key=lambda x: x["candidate_score"], reverse=True)

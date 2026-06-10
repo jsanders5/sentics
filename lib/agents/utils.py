@@ -12,6 +12,49 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any
 from decimal import Decimal
 
+# ---------------------------------------------------------------------------
+# Category definitions
+# ---------------------------------------------------------------------------
+# CATEGORIES: Internal category name -> representative coin IDs used by
+# Agent 1 to calculate category momentum scores.  These are intentionally
+# small samples (3-5 liquid, high-cap coins per category) to keep API call
+# volume low during momentum scoring.
+#
+# Agent 2 does NOT use this for coin discovery — it calls the CoinGecko
+# /coins/markets?category=<id> endpoint so that all coins in a category are
+# covered, not just these representatives.
+CATEGORIES: Dict[str, List[str]] = {
+    "Layer 1":  ["bitcoin", "ethereum", "solana", "cardano", "avalanche-2"],
+    "Layer 2":  ["arbitrum", "optimism", "polygon", "starknet"],
+    "DeFi":     ["uniswap", "aave", "curve-dao-token", "maker"],
+    "AI":       ["fetch-ai", "render-token", "bittensor", "near"],
+    "Exchange": ["binancecoin", "okb", "kucoin-shares"],
+    "Gaming":   ["gala", "immutable-x", "beam-2"],
+    "Meme":     ["dogecoin", "shiba-inu", "pepe"],
+}
+
+# CATEGORY_TO_COINGECKO_ID: Translates internal category names to CoinGecko's
+# category ID taxonomy, used with /coins/markets?category=<id>.
+# Verify IDs at: https://api.coingecko.com/api/v3/coins/categories/list
+CATEGORY_TO_COINGECKO_ID: Dict[str, str] = {
+    "Layer 1":  "layer-1",
+    "Layer 2":  "layer-2",
+    "DeFi":     "decentralized-finance-defi",
+    "AI":       "artificial-intelligence",
+    "Exchange": "exchange-based-tokens",
+    "Gaming":   "gaming",
+    "Meme":     "meme-token",
+}
+
+def get_category_for_coin(coin_id: str) -> str:
+    """Map a coin ID to its internal category using the representative sample.
+    Returns 'Other' if the coin is not in any representative list.
+    Note: use CoinGecko category endpoint for exhaustive membership checks."""
+    for category, coins in CATEGORIES.items():
+        if coin_id in coins:
+            return category
+    return "Other"
+
 # Initialize Sentry
 sentry_sdk.init(dsn=os.getenv("SENTRY_DSN"))
 
@@ -39,10 +82,14 @@ def get_redis_client():
 
 # CoinGecko API calls
 def fetch_coingecko(endpoint: str, params: Dict = None) -> Dict:
-    """Fetch data from CoinGecko free API."""
+    """Fetch data from CoinGecko API (free or Pro)."""
     try:
         url = f"https://api.coingecko.com/api/v3{endpoint}"
-        response = requests.get(url, params=params, timeout=10)
+        headers = {}
+        api_key = os.getenv("COINGECKO_API_KEY")
+        if api_key:
+            headers["x-cg-pro-api-key"] = api_key
+        response = requests.get(url, params=params, headers=headers if headers else None, timeout=10)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -65,13 +112,22 @@ def fetch_top_50_coins() -> List[Dict]:
         raise
 
 def fetch_market_chart(coin_id: str, days: int = 30) -> Dict:
-    """Fetch OHLCV data for a coin."""
+    """Fetch price and volume history for a coin.
+
+    CoinGecko /market_chart returns:
+      { "prices": [[ts, price], ...], "total_volumes": [[ts, vol], ...] }
+    We normalize to always expose a "volumes" key so callers don't need to
+    know the CoinGecko field name.
+    """
     try:
         data = fetch_coingecko(f"/coins/{coin_id}/market_chart", {
             "vs_currency": "usd",
             "days": days,
             "interval": "daily"
         })
+        # Normalize: CoinGecko uses "total_volumes"; expose as both keys
+        if "total_volumes" in data and "volumes" not in data:
+            data["volumes"] = data["total_volumes"]
         return data
     except Exception as e:
         sentry_sdk.capture_exception(e)

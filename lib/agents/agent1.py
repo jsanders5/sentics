@@ -12,26 +12,9 @@ from datetime import datetime, timedelta
 import statistics
 from .utils import (
     fetch_coingecko, fetch_btc_dominance, fetch_market_chart,
-    calculate_momentum, calculate_moving_average, log_info, log_error
+    calculate_momentum, calculate_moving_average, log_info, log_error,
+    CATEGORIES, get_category_for_coin
 )
-
-# Category definitions (coins per category)
-CATEGORIES = {
-    "Layer 1": ["bitcoin", "ethereum", "solana", "cardano", "polkadot"],
-    "Layer 2": ["arbitrum", "optimism", "polygon", "starknet"],
-    "DeFi": ["uniswap", "aave", "curve-dao-token", "convex-crv", "maker"],
-    "AI": ["fetch-ai", "chainlink", "render-token", "helium"],
-    "Exchange": ["binancecoin", "uniswap", "dydx"],
-    "Gaming": ["decentraland", "the-sandbox", "gala", "axie-infinity"],
-    "Meme": ["dogecoin", "shiba-inu", "pepe"],
-}
-
-def get_category_for_coin(coin_id: str) -> str:
-    """Map coin to category."""
-    for category, coins in CATEGORIES.items():
-        if coin_id in coins:
-            return category
-    return "Other"
 
 def score_category(category_name: str, coins_data: List[Dict]) -> Dict:
     """
