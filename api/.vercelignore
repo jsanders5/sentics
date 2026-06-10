@@ -4,7 +4,6 @@ yarn.lock
 node_modules/
 .next/
 pages/
-lib/
 public/
 .git/
 .env*
