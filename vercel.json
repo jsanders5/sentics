@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/run-pipeline?trigger_type=scheduled",
+      "schedule": "0 15 * * *"
+    }
+  ]
+}
