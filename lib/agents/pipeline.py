@@ -8,6 +8,7 @@ Persists results to database and cache.
 import os
 import uuid
 from datetime import datetime
+from typing import Dict
 from .utils import (
     insert_categories, insert_candidates, insert_pipeline_run,
     cache_set, cache_invalidate, log_info, log_error
