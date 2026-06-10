@@ -4,12 +4,5 @@
       "path": "/api/run-pipeline?trigger_type=scheduled",
       "schedule": "0 15 * * *"
     }
-  ],
-  "services": [
-    {
-      "name": "agents",
-      "runtime": "python3.12",
-      "entrypoint": "api/app.py"
-    }
   ]
 }
