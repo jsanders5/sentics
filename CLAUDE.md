@@ -6,10 +6,10 @@ Guidance for working with the sentics monorepo using Claude Code.
 
 This is a monorepo with two Vercel deployments:
 
-### 1. `sentics` (Frontend)
+### 1. `sentics-sti` (Frontend)
 - **Framework**: Next.js
 - **Location**: Root directory (`/`)
-- **Vercel Project**: https://sentics.vercel.app
+- **Vercel Project**: https://sentics-sti.vercel.app
 - **Purpose**: Web UI for the sentics platform
 - **Env Vars**: API endpoints, analytics, etc. (define as needed)
 
