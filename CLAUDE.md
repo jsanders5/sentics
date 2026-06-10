@@ -24,6 +24,7 @@ This is a monorepo with two Vercel deployments:
   - `SUPABASE_SECRET_KEY` — Supabase API key
   - `ANTHROPIC_API_KEY` — Anthropic API key for agents
   - `REDIS_URL` — Redis instance for caching
+  - `COINGECKO_API_KEY` — CoinGecko Pro API key (required for Agent 2 category endpoint)
   - `SENTRY_DSN` — Optional, for error tracking
 
 ### Library Structure
