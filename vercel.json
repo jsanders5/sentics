@@ -4,5 +4,10 @@
       "path": "/api/run-pipeline?trigger_type=scheduled",
       "schedule": "0 15 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/run_pipeline.py": {
+      "runtime": "python3.12"
+    }
+  }
 }
