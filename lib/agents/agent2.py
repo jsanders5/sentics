@@ -141,11 +141,11 @@ def run(agent1_result: Dict, category_coins_map: Dict = None) -> Dict:
             for cat in agent1_result.get("categories", [])
         }
 
-        # Fetch all coins and filter
+        # Fetch top 50 coins by market cap (same universe as Agent 1)
         all_coins = fetch_coingecko("/coins/markets", {
             "vs_currency": "usd",
             "order": "market_cap_desc",
-            "per_page": 250,
+            "per_page": 50,
             "page": 1,
             "sparkline": False
         })

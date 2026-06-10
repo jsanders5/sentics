@@ -145,11 +145,11 @@ def run(trigger_type: str = "scheduled") -> Dict:
     try:
         log_info("Agent 1 starting: Category Momentum Scoring")
 
-        # Fetch top 50 coins
+        # Fetch top 50 coins by market cap
         coins = fetch_coingecko("/coins/markets", {
             "vs_currency": "usd",
             "order": "market_cap_desc",
-            "per_page": 250,  # Fetch more to cover all categories
+            "per_page": 50,
             "page": 1,
             "sparkline": False
         })
