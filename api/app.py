@@ -11,8 +11,14 @@ import os
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 
-# Ensure lib module can be imported from the current directory
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Ensure lib module can be imported - try current directory first, then parent
+app_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(app_dir)
+
+# Add both paths to sys.path to handle both local and Vercel environments
+sys.path.insert(0, app_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 from lib.agents.pipeline import run_pipeline
 
