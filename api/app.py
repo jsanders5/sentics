@@ -10,8 +10,10 @@ from fastapi.responses import JSONResponse
 import sys
 import os
 
-# Add project root to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add monorepo root to path for imports
+# When deployed, /api is the root, so we need to go up to the monorepo root
+monorepo_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+sys.path.insert(0, monorepo_root)
 
 from lib.agents.pipeline import run_pipeline
 
