@@ -29,11 +29,12 @@ This is a monorepo with two Vercel deployments:
 
 ### Library Structure
 
-- `/lib/agents/` — Shared agent code (Agent 1, 2, 3 pipeline logic)
-- `/api/lib/` — Copy of agents lib for Vercel deployment (see note below)
+- `/api/lib/agents/` — Agent code (Agent 1, 2, 3 pipeline logic)
+  - `agent1.py` — Category momentum scoring
+  - `agent2.py` — Candidate discovery & technical filtering
+  - `agent3.py` — Candidate synthesis & rationale generation
+  - `utils.py` — Shared utilities (API calls, database, logging)
 - `/api/requirements.txt` — Python dependencies for Vercel
-
-**Note**: Currently maintains duplicate `/lib` in both root and `/api/` directory. Should consolidate to single source of truth in future refactoring.
 
 ## Deployment Notes
 
