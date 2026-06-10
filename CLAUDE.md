@@ -1,5 +1,42 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for working with the sentics monorepo using Claude Code.
 
-This repository is newly initialized. Update this file as the project takes shape.
+## Project Architecture
+
+This is a monorepo with two Vercel deployments:
+
+### 1. `sentics` (Frontend)
+- **Framework**: Next.js
+- **Location**: Root directory (`/`)
+- **Vercel Project**: https://sentics.vercel.app
+- **Purpose**: Web UI for the sentics platform
+- **Env Vars**: API endpoints, analytics, etc. (define as needed)
+
+### 2. `sentics-agents` (Backend API)
+- **Framework**: FastAPI (Python)
+- **Location**: `/api` directory
+- **Vercel Project**: https://sentics-agents.vercel.app
+- **Purpose**: Agent pipeline orchestration service
+- **Entrypoint**: `api/app.py`
+- **Required Env Vars** (set in Vercel project settings):
+  - `SUPABASE_URL` — Supabase database URL
+  - `SUPABASE_SECRET_KEY` — Supabase API key
+  - `ANTHROPIC_API_KEY` — Anthropic API key for agents
+  - `REDIS_URL` — Redis instance for caching
+  - `SENTRY_DSN` — Optional, for error tracking
+
+### Library Structure
+
+- `/lib/agents/` — Shared agent code (Agent 1, 2, 3 pipeline logic)
+- `/api/lib/` — Copy of agents lib for Vercel deployment (see note below)
+- `/api/requirements.txt` — Python dependencies for Vercel
+
+**Note**: Currently maintains duplicate `/lib` in both root and `/api/` directory. Should consolidate to single source of truth in future refactoring.
+
+## Deployment Notes
+
+- Frontend deploys automatically on commits to main branch (Next.js)
+- Backend deploys to `/api` directory via Vercel Python builder
+- Agent pipeline endpoint: `POST /api/run-pipeline?trigger_type=manual|scheduled`
+- Cron job scheduled at 15:00 UTC daily (configured in root `vercel.json`)
