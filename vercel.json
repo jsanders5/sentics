@@ -5,9 +5,11 @@
       "schedule": "0 15 * * *"
     }
   ],
-  "functions": {
-    "api/run_pipeline.py": {
-      "runtime": "python3.12"
+  "services": [
+    {
+      "name": "agents",
+      "runtime": "python3.12",
+      "entrypoint": "api/app.py"
     }
-  }
+  ]
 }
