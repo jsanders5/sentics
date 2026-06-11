@@ -94,8 +94,8 @@ def fetch_coingecko(endpoint: str, params: Dict = None) -> Dict:
         if api_key:
             headers["x-cg-pro-api-key"] = api_key
 
-        # Rate limiting: 0.5s delay between requests
-        time.sleep(0.5)
+        # Rate limiting: 1s delay between requests (100 calls/min limit)
+        time.sleep(1)
 
         response = requests.get(url, params=params, headers=headers if headers else None, timeout=10)
         response.raise_for_status()
