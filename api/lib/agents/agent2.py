@@ -20,9 +20,13 @@ from .utils import (
 )
 
 def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List[float]) -> bool:
-    """Check if coin passes all technical filters."""
+    """Check if coin passes all technical filters.
+
+    Requires minimum 14 days of data for RSI calculation.
+    MA filters gracefully degrade if < 50 days available.
+    """
     try:
-        if len(prices) < 50 or len(volumes) < 1:
+        if len(prices) < 14 or len(volumes) < 1:
             return False
 
         # RSI filter: 40-72
