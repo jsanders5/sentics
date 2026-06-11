@@ -4,7 +4,7 @@ Agent 1: Category Momentum Scoring
 Analyzes price momentum, volume momentum, and macro conditions across
 crypto categories to identify bullish sectors.
 
-Output: Category scores (0-100), with passing threshold >= 55
+Output: Category scores (0-100), with passing threshold >= 40
 """
 
 from typing import List, Dict
@@ -154,8 +154,8 @@ def run(trigger_type: str = "scheduled") -> Dict:
         # Apply macro adjustments
         category_scores = apply_macro_adjustment(category_scores)
 
-        # Filter passing categories (>= 55)
-        passing_categories = [c for c in category_scores if c["momentum_score"] >= 55]
+        # Filter passing categories (>= 40)
+        passing_categories = [c for c in category_scores if c["momentum_score"] >= 40]
 
         log_info(f"Agent 1 complete: {len(passing_categories)} passing categories")
 
