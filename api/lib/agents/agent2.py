@@ -1,14 +1,14 @@
 """
-Agent 2: Candidate Discovery & Technical Filtering
+Agent 2: Candidate Discovery & Technical Scoring
 
-Filters coins from passing categories by:
-- RSI 35-75 (widened range to capture oversold coins in bearish markets)
-- Volume >= 1.1x 30-day average (last completed trading day; excludes partial-day data)
-- Price >= 20d SMA (50d SMA scored but not a hard gate)
+Discovers all coins from passing categories with sufficient data.
+No hard filters — all coins scored based on:
+- Technical alignment: RSI positioning, volume strength, MA alignment
+- Category momentum: sector-level strength signal
 
-Scores candidates: 50% technical alignment (normalized 0-100) + 50% category momentum
+Scores all candidates: 50% technical alignment + 50% category momentum
 
-Output: Up to 50 ranked candidates for Agent 3 synthesis
+Output: Up to 50 ranked candidates (highest scores first) for Agent 3 synthesis
 """
 
 from typing import List, Dict, Optional
@@ -19,70 +19,9 @@ from .utils import (
     CATEGORY_TO_COINGECKO_ID
 )
 
-def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List[float]) -> bool:
-    """Check if coin passes all technical filters.
-
-    Requires minimum 14 days of data for RSI calculation.
-    MA filters gracefully degrade if < 50 days available.
-    """
-    try:
-        coin_id = coin_data.get('id', 'unknown')
-        symbol = coin_data.get('symbol', 'UNKNOWN').upper()
-        if len(prices) < 14 or len(volumes) < 1:
-            return False
-
-        # RSI filter: 40-72
-        current_price = coin_data.get("current_price", 0)
-        if current_price <= 0:
-            return False
-
-        rsi = calculate_rsi(prices, period=14)
-        if not (35 <= rsi <= 75):
-            print(f"    {symbol}: RSI {rsi:.1f} outside 35-75", flush=True)
-            return False
-
-        # Volume filter: >= 1.1x 30-day average (last COMPLETED day vs. prior 30 completed days).
-        # CoinGecko daily market_chart includes the current partial calendar day as the final
-        # data point, which contains only the volume accrued up to the most recent hourly
-        # update. Comparing that partial figure against 30 full trading days systematically
-        # produces ratios of 0.5–0.7x mid-day, making the filter structurally impossible to
-        # pass. Fix: use volumes[:-1] (drop today's partial entry) so both numerator and
-        # denominator are completed trading days.
-        completed_volumes = volumes[:-1] if len(volumes) > 1 else volumes
-        if not completed_volumes:
-            return False
-        last_completed_vol = completed_volumes[-1]
-        avg_volume_30d = (
-            statistics.mean(completed_volumes[-30:]) if len(completed_volumes) >= 30
-            else statistics.mean(completed_volumes)
-        )
-        volume_ratio = last_completed_vol / avg_volume_30d if avg_volume_30d > 0 else 0
-
-        # Threshold: 1.1x (soft floor — excludes dead/inactive coins only).
-        # The original 1.3x breakout threshold is now handled by the volume score in
-        # calculate_technical_score, which rewards higher volume ratios continuously
-        # rather than binary-gating at a single cutoff.
-        if volume_ratio < 1.1:
-            print(f"    {symbol}: Vol {volume_ratio:.2f}x < 1.1x", flush=True)
-            return False
-
-        # MA filter: price >= 20d MA (primary trend gate).
-        # The 50d MA check is retained in calculate_technical_score as a scoring factor.
-        # Requiring BOTH MAs as a hard gate eliminates coins in valid consolidation near
-        # support — the 50d MA score already penalizes coins trading below it without
-        # categorically blocking them.
-        ma_20 = calculate_moving_average(prices, 20)
-
-        if current_price < ma_20:
-            print(f"    {symbol}: Price {current_price:.2f} < MA20 {ma_20:.2f}", flush=True)
-            return False
-
-        print(f"    {symbol}: PASS (RSI={rsi:.1f}, Vol={volume_ratio:.2f}x)", flush=True)
-        return True
-
-    except Exception as e:
-        log_error(f"Error checking technical filters for {coin_data.get('id')}", e)
-        return False
+def has_sufficient_data(prices: List[float], volumes: List[float]) -> bool:
+    """Check if coin has minimum data required for analysis (14 days for RSI)."""
+    return len(prices) >= 14 and len(volumes) >= 1
 
 def calculate_technical_score(coin_data: Dict, prices: List[float], volumes: List[float]) -> float:
     """
@@ -217,15 +156,11 @@ def run(agent1_result: Dict, category_coins_map: Dict = None) -> Dict:
                     volumes = [v[1] for v in chart.get("volumes", [])]
 
                     # Skip coins with insufficient history (need 14+ days for RSI)
-                    if len(prices) < 14:
-                        print(f"    {symbol}: skip (insufficient history: {len(prices)} days)", flush=True)
+                    if not has_sufficient_data(prices, volumes):
+                        print(f"    {symbol}: skip (insufficient data: {len(prices)} days)", flush=True)
                         continue
 
-                    # Apply technical filters: RSI 40-72, volume >= 1.3x, price > MAs
-                    if not passes_technical_filters(coin, prices, volumes):
-                        continue
-
-                    # Score this candidate
+                    # Score this candidate (no hard gates - all coins with sufficient data are ranked)
                     technical_score = calculate_technical_score(coin, prices, volumes)
 
                     # Candidate score: 50% technical alignment + 50% category momentum.
