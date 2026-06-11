@@ -83,16 +83,17 @@ def get_redis_client():
 
 # CoinGecko API calls
 def fetch_coingecko(endpoint: str, params: Dict = None) -> Dict:
-    """Fetch data from CoinGecko API (free or Pro).
+    """Fetch data from CoinGecko API (demo or Pro).
 
-    Includes request throttling (0.5s delay) to avoid rate limits.
+    Uses x-cg-demo-api-key header for demo API key.
+    Includes request throttling (1s delay) to stay under 100 calls/min limit.
     """
     try:
         url = f"https://api.coingecko.com/api/v3{endpoint}"
         headers = {}
         api_key = os.getenv("COINGECKO_API_KEY")
         if api_key:
-            headers["x-cg-pro-api-key"] = api_key
+            headers["x-cg-demo-api-key"] = api_key
 
         # Rate limiting: 1s delay between requests (100 calls/min limit)
         time.sleep(1)
