@@ -27,19 +27,18 @@ def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List
     """
     try:
         coin_id = coin_data.get('id', 'unknown')
+        symbol = coin_data.get('symbol', 'UNKNOWN').upper()
         if len(prices) < 14 or len(volumes) < 1:
-            log_info(f"  {coin_id}: Insufficient data (prices={len(prices)}, volumes={len(volumes)})")
             return False
 
         # RSI filter: 40-72
         current_price = coin_data.get("current_price", 0)
         if current_price <= 0:
-            log_info(f"  {coin_id}: No current price")
             return False
 
         rsi = calculate_rsi(prices, period=14)
         if not (40 <= rsi <= 72):
-            log_info(f"  {coin_id}: RSI {rsi:.1f} outside 40-72 range")
+            print(f"    {symbol}: RSI {rsi:.1f} outside 40-72", flush=True)
             return False
 
         # Volume filter: >= 1.1x 30-day average (last COMPLETED day vs. prior 30 completed days).
@@ -51,7 +50,6 @@ def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List
         # denominator are completed trading days.
         completed_volumes = volumes[:-1] if len(volumes) > 1 else volumes
         if not completed_volumes:
-            log_info(f"  {coin_id}: No completed volumes")
             return False
         last_completed_vol = completed_volumes[-1]
         avg_volume_30d = (
@@ -65,7 +63,7 @@ def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List
         # calculate_technical_score, which rewards higher volume ratios continuously
         # rather than binary-gating at a single cutoff.
         if volume_ratio < 1.1:
-            log_info(f"  {coin_id}: Volume ratio {volume_ratio:.2f}x below 1.1x threshold")
+            print(f"    {symbol}: Vol {volume_ratio:.2f}x < 1.1x", flush=True)
             return False
 
         # MA filter: price >= 20d MA (primary trend gate).
@@ -76,10 +74,10 @@ def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List
         ma_20 = calculate_moving_average(prices, 20)
 
         if current_price < ma_20:
-            log_info(f"  {coin_id}: Price {current_price:.2f} below 20d MA {ma_20:.2f}")
+            print(f"    {symbol}: Price {current_price:.2f} < MA20 {ma_20:.2f}", flush=True)
             return False
 
-        log_info(f"  {coin_id}: PASSES (RSI={rsi:.1f}, Vol={volume_ratio:.2f}x, Price={current_price:.2f})")
+        print(f"    {symbol}: PASS (RSI={rsi:.1f}, Vol={volume_ratio:.2f}x)", flush=True)
         return True
 
     except Exception as e:
@@ -220,7 +218,7 @@ def run(agent1_result: Dict, category_coins_map: Dict = None) -> Dict:
 
                     # Skip coins with insufficient history (need 14+ days for RSI)
                     if len(prices) < 14:
-                        log_info(f"Skipping {symbol}: insufficient price history ({len(prices)} days)")
+                        print(f"    {symbol}: skip (insufficient history: {len(prices)} days)", flush=True)
                         continue
 
                     # Apply technical filters: RSI 40-72, volume >= 1.3x, price > MAs
