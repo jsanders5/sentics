@@ -5,6 +5,7 @@ Handles: API calls, database operations, caching, logging.
 
 import os
 import json
+import time
 import requests
 import redis
 import sentry_sdk
@@ -82,13 +83,20 @@ def get_redis_client():
 
 # CoinGecko API calls
 def fetch_coingecko(endpoint: str, params: Dict = None) -> Dict:
-    """Fetch data from CoinGecko API (free or Pro)."""
+    """Fetch data from CoinGecko API (free or Pro).
+
+    Includes request throttling (0.5s delay) to avoid rate limits.
+    """
     try:
         url = f"https://api.coingecko.com/api/v3{endpoint}"
         headers = {}
         api_key = os.getenv("COINGECKO_API_KEY")
         if api_key:
             headers["x-cg-pro-api-key"] = api_key
+
+        # Rate limiting: 0.5s delay between requests
+        time.sleep(0.5)
+
         response = requests.get(url, params=params, headers=headers if headers else None, timeout=10)
         response.raise_for_status()
         return response.json()
