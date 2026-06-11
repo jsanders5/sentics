@@ -140,7 +140,10 @@ def run(agent2_result: Dict) -> Dict:
             }
 
         # Initialize Anthropic client
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise Exception("ANTHROPIC_API_KEY not set")
+        client = anthropic.Anthropic(api_key=api_key)
 
         candidates_with_rationales = []
         failed_count = 0
