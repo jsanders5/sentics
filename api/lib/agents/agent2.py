@@ -2,7 +2,7 @@
 Agent 2: Candidate Discovery & Technical Filtering
 
 Filters coins from passing categories by:
-- RSI 40-72 (momentum sweet spot for crypto)
+- RSI 35-75 (widened range to capture oversold coins in bearish markets)
 - Volume >= 1.1x 30-day average (last completed trading day; excludes partial-day data)
 - Price >= 20d SMA (50d SMA scored but not a hard gate)
 
@@ -37,8 +37,8 @@ def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List
             return False
 
         rsi = calculate_rsi(prices, period=14)
-        if not (40 <= rsi <= 72):
-            print(f"    {symbol}: RSI {rsi:.1f} outside 40-72", flush=True)
+        if not (35 <= rsi <= 75):
+            print(f"    {symbol}: RSI {rsi:.1f} outside 35-75", flush=True)
             return False
 
         # Volume filter: >= 1.1x 30-day average (last COMPLETED day vs. prior 30 completed days).
