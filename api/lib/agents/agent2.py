@@ -165,9 +165,9 @@ def run(agent1_result: Dict, category_coins_map: Dict = None) -> Dict:
                     "vs_currency": "usd",
                     "category": coingecko_category_id,
                     "order": "market_cap_desc",
-                    "per_page": 100,  # broader than top-50 to not miss mid-caps in category
+                    "per_page": 10,  # limit to top 10 coins per category for speed
                     "page": 1,
-                    "sparkline": False
+                    "sparkline": "false"
                 })
             except Exception as e:
                 log_error(f"Failed to fetch coins for category '{category_name}'", e)
@@ -186,8 +186,8 @@ def run(agent1_result: Dict, category_coins_map: Dict = None) -> Dict:
                     prices = [p[1] for p in chart.get("prices", [])]
                     volumes = [v[1] for v in chart.get("volumes", [])]
 
-                    # Skip coins with insufficient history
-                    if len(prices) < 50:
+                    # Skip coins with insufficient history (need 14+ days for RSI)
+                    if len(prices) < 14:
                         log_info(f"Skipping {symbol}: insufficient price history ({len(prices)} days)")
                         continue
 
