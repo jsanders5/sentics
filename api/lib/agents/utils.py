@@ -120,7 +120,8 @@ def fetch_top_50_coins() -> List[Dict]:
         sentry_sdk.capture_exception(e)
         raise
 
-# CoinGecko ID to Binance symbol mapping
+# CoinGecko ID to Binance.us symbol mapping
+# Only includes coins that trade on Binance.us
 COINGECKO_TO_BINANCE = {
     "bitcoin": "BTCUSDT",
     "ethereum": "ETHUSDT",
@@ -130,23 +131,17 @@ COINGECKO_TO_BINANCE = {
     "arbitrum": "ARBUSDT",
     "optimism": "OPUSDT",
     "polygon": "MATICUSDT",
-    "starknet": "STRKUSDT",
     "uniswap": "UNIUSDT",
     "aave": "AAVEUSDT",
     "curve-dao-token": "CRVUSDT",
     "maker": "MKRUSDT",
     "fetch-ai": "FETCHUSDT",
     "render-token": "RNDRUSDT",
-    "bittensor": "TATAUSDT",
     "near": "NEARUSDT",
     "binancecoin": "BNBUSDT",
     "okb": "OKBUSDT",
-    "kucoin-shares": "KUSDT",
     "gala": "GALAUSDT",
-    "immutable-x": "IMXUSDT",
-    "beam-2": "BEAMAUSDT",
     "dogecoin": "DOGEUSDT",
-    "shiba-inu": "SHIBUUSDT",
     "pepe": "PEPEUSDT",
 }
 
