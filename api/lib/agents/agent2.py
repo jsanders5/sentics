@@ -26,16 +26,20 @@ def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List
     MA filters gracefully degrade if < 50 days available.
     """
     try:
+        coin_id = coin_data.get('id', 'unknown')
         if len(prices) < 14 or len(volumes) < 1:
+            log_info(f"  {coin_id}: Insufficient data (prices={len(prices)}, volumes={len(volumes)})")
             return False
 
         # RSI filter: 40-72
         current_price = coin_data.get("current_price", 0)
         if current_price <= 0:
+            log_info(f"  {coin_id}: No current price")
             return False
 
         rsi = calculate_rsi(prices, period=14)
         if not (40 <= rsi <= 72):
+            log_info(f"  {coin_id}: RSI {rsi:.1f} outside 40-72 range")
             return False
 
         # Volume filter: >= 1.1x 30-day average (last COMPLETED day vs. prior 30 completed days).
@@ -47,6 +51,7 @@ def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List
         # denominator are completed trading days.
         completed_volumes = volumes[:-1] if len(volumes) > 1 else volumes
         if not completed_volumes:
+            log_info(f"  {coin_id}: No completed volumes")
             return False
         last_completed_vol = completed_volumes[-1]
         avg_volume_30d = (
@@ -60,6 +65,7 @@ def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List
         # calculate_technical_score, which rewards higher volume ratios continuously
         # rather than binary-gating at a single cutoff.
         if volume_ratio < 1.1:
+            log_info(f"  {coin_id}: Volume ratio {volume_ratio:.2f}x below 1.1x threshold")
             return False
 
         # MA filter: price >= 20d MA (primary trend gate).
@@ -70,8 +76,10 @@ def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List
         ma_20 = calculate_moving_average(prices, 20)
 
         if current_price < ma_20:
+            log_info(f"  {coin_id}: Price {current_price:.2f} below 20d MA {ma_20:.2f}")
             return False
 
+        log_info(f"  {coin_id}: PASSES (RSI={rsi:.1f}, Vol={volume_ratio:.2f}x, Price={current_price:.2f})")
         return True
 
     except Exception as e:
@@ -199,6 +207,7 @@ def run(agent1_result: Dict, category_coins_map: Dict = None) -> Dict:
             category_momentum = category_scores_map.get(category_name, 50)
             category_candidate_count = 0
 
+            log_info(f"  Checking {len(category_coins)} coins in '{category_name}' (momentum={category_momentum:.1f})")
             for coin in category_coins:
                 coin_id = coin.get("id")
                 symbol = coin.get("symbol", "").upper()
