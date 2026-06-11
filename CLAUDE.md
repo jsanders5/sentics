@@ -24,8 +24,15 @@ This is a monorepo with two Vercel deployments:
   - `SUPABASE_SECRET_KEY` — Supabase API key
   - `ANTHROPIC_API_KEY` — Anthropic API key for agents
   - `REDIS_URL` — Redis instance for caching
-  - `COINGECKO_API_KEY` — CoinGecko Pro API key (required for Agent 2 category endpoint)
   - `SENTRY_DSN` — Optional, for error tracking
+
+- **Optional Env Vars:**
+  - `BINANCE_API_KEY` — Binance.us API key (optional, public OHLCV endpoints work without it)
+
+**Data Sources:**
+- Market cap ranking & BTC dominance: CoinGecko (cached 12h to avoid rate limits)
+- OHLCV history: Binance.us public API (no auth required, ~1200 req/min)
+- Categories & coin metadata: CoinGecko (cached)
 
 ### Library Structure
 

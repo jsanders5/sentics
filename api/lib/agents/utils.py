@@ -97,8 +97,13 @@ def fetch_coingecko(endpoint: str, params: Dict = None) -> Dict:
         raise
 
 def fetch_top_50_coins() -> List[Dict]:
-    """Fetch top 50 coins by market cap."""
+    """Fetch top 50 coins by market cap (cached 12 hours)."""
     try:
+        cache_key = "top_50_coins"
+        cached = cache_get(cache_key)
+        if cached:
+            return cached
+
         data = fetch_coingecko("/coins/markets", {
             "vs_currency": "usd",
             "order": "market_cap_desc",
@@ -106,38 +111,119 @@ def fetch_top_50_coins() -> List[Dict]:
             "page": 1,
             "sparkline": False
         })
-        return data
+
+        if data:
+            cache_set(cache_key, {"coins": data}, ttl_minutes=720)
+            return data
+        return []
     except Exception as e:
         sentry_sdk.capture_exception(e)
         raise
 
-def fetch_market_chart(coin_id: str, days: int = 30) -> Dict:
-    """Fetch price and volume history for a coin.
+# CoinGecko ID to Binance symbol mapping
+COINGECKO_TO_BINANCE = {
+    "bitcoin": "BTCUSDT",
+    "ethereum": "ETHUSDT",
+    "solana": "SOLUSDT",
+    "cardano": "ADAUSDT",
+    "avalanche-2": "AVAXUSDT",
+    "arbitrum": "ARBUSDT",
+    "optimism": "OPUSDT",
+    "polygon": "MATICUSDT",
+    "starknet": "STRKUSDT",
+    "uniswap": "UNIUSDT",
+    "aave": "AAVEUSDT",
+    "curve-dao-token": "CRVUSDT",
+    "maker": "MKRUSDT",
+    "fetch-ai": "FETCHUSDT",
+    "render-token": "RNDRUSDT",
+    "bittensor": "TATAUSDT",
+    "near": "NEARUSDT",
+    "binancecoin": "BNBUSDT",
+    "okb": "OKBUSDT",
+    "kucoin-shares": "KUSDT",
+    "gala": "GALAUSDT",
+    "immutable-x": "IMXUSDT",
+    "beam-2": "BEAMAUSDT",
+    "dogecoin": "DOGEUSDT",
+    "shiba-inu": "SHIBUUSDT",
+    "pepe": "PEPEUSDT",
+}
 
-    CoinGecko /market_chart returns:
-      { "prices": [[ts, price], ...], "total_volumes": [[ts, vol], ...] }
-    We normalize to always expose a "volumes" key so callers don't need to
-    know the CoinGecko field name.
+def fetch_binance_ohlcv(coin_id: str, days: int = 30) -> Dict:
+    """Fetch OHLCV from Binance.us klines endpoint (no auth required, public data)."""
+    try:
+        symbol = COINGECKO_TO_BINANCE.get(coin_id)
+        if not symbol:
+            log_error(f"No Binance symbol mapping for {coin_id}", None)
+            return {"prices": [], "volumes": []}
+
+        # Calculate number of candles needed (daily)
+        limit = min(1000, days + 10)  # Binance limit is 1000 per request
+
+        url = f"https://api.binance.us/api/v3/klines"
+        params = {
+            "symbol": symbol,
+            "interval": "1d",
+            "limit": limit
+        }
+
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        klines = response.json()
+
+        # Convert klines to CoinGecko format: [[timestamp, price], ...]
+        prices = [[int(k[0]), float(k[4])] for k in klines]  # close price
+        volumes = [[int(k[0]), float(k[7])] for k in klines]  # quote asset volume
+
+        return {
+            "prices": prices[-days:],
+            "volumes": volumes[-days:]
+        }
+    except Exception as e:
+        log_error(f"Error fetching Binance OHLCV for {coin_id}", e)
+        return {"prices": [], "volumes": []}
+
+def fetch_market_chart(coin_id: str, days: int = 30) -> Dict:
+    """Fetch price and volume history for a coin from Binance (with caching).
+
+    Uses Binance.us API for OHLCV data, with Redis caching to avoid repeated calls.
+    Cache TTL is 12 hours (sufficient for daily bars).
     """
     try:
-        data = fetch_coingecko(f"/coins/{coin_id}/market_chart", {
-            "vs_currency": "usd",
-            "days": days,
-            "interval": "daily"
-        })
-        # Normalize: CoinGecko uses "total_volumes"; expose as both keys
-        if "total_volumes" in data and "volumes" not in data:
-            data["volumes"] = data["total_volumes"]
+        # Check cache first
+        cache_key = f"market_chart:{coin_id}:{days}"
+        cached = cache_get(cache_key)
+        if cached:
+            return cached
+
+        # Fetch from Binance
+        data = fetch_binance_ohlcv(coin_id, days)
+
+        # Cache for 12 hours
+        if data.get("prices"):
+            cache_set(cache_key, data, ttl_minutes=720)
+
         return data
     except Exception as e:
         sentry_sdk.capture_exception(e)
         raise
 
 def fetch_btc_dominance() -> float:
-    """Fetch BTC dominance percentage."""
+    """Fetch BTC dominance percentage (cached 12 hours)."""
     try:
+        cache_key = "btc_dominance"
+        cached = cache_get(cache_key)
+        if cached:
+            return cached.get("dominance", 0)
+
         data = fetch_coingecko("/global")
-        return data.get("data", {}).get("btc_dominance", 0)
+        dominance = data.get("data", {}).get("btc_dominance", 0)
+
+        if dominance > 0:
+            cache_set(cache_key, {"dominance": dominance}, ttl_minutes=720)
+
+        return dominance
     except Exception as e:
         sentry_sdk.capture_exception(e)
         return 0
