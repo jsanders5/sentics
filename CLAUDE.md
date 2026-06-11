@@ -26,13 +26,9 @@ This is a monorepo with two Vercel deployments:
   - `REDIS_URL` — Redis instance for caching
   - `SENTRY_DSN` — Optional, for error tracking
 
-- **Optional Env Vars:**
-  - `BINANCE_API_KEY` — Binance.us API key (optional, public OHLCV endpoints work without it)
-
 **Data Sources:**
-- Market cap ranking & BTC dominance: CoinGecko (cached 12h to avoid rate limits)
-- OHLCV history: Binance.us public API (no auth required, ~1200 req/min)
-- Categories & coin metadata: CoinGecko (cached)
+- All market data: CoinGecko free tier (market cap, categories, OHLCV, BTC dominance)
+- Caching: Redis (12h TTL on OHLCV to minimize API calls)
 
 ### Library Structure
 

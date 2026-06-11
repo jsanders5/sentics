@@ -120,70 +120,12 @@ def fetch_top_50_coins() -> List[Dict]:
         sentry_sdk.capture_exception(e)
         raise
 
-# CoinGecko ID to Binance.us symbol mapping
-# Only includes coins that trade on Binance.us
-COINGECKO_TO_BINANCE = {
-    "bitcoin": "BTCUSDT",
-    "ethereum": "ETHUSDT",
-    "solana": "SOLUSDT",
-    "cardano": "ADAUSDT",
-    "avalanche-2": "AVAXUSDT",
-    "arbitrum": "ARBUSDT",
-    "optimism": "OPUSDT",
-    "polygon": "MATICUSDT",
-    "uniswap": "UNIUSDT",
-    "aave": "AAVEUSDT",
-    "curve-dao-token": "CRVUSDT",
-    "maker": "MKRUSDT",
-    "fetch-ai": "FETCHUSDT",
-    "render-token": "RNDRUSDT",
-    "near": "NEARUSDT",
-    "binancecoin": "BNBUSDT",
-    "okb": "OKBUSDT",
-    "gala": "GALAUSDT",
-    "dogecoin": "DOGEUSDT",
-    "pepe": "PEPEUSDT",
-}
-
-def fetch_binance_ohlcv(coin_id: str, days: int = 30) -> Dict:
-    """Fetch OHLCV from Binance.us klines endpoint (no auth required, public data)."""
-    try:
-        symbol = COINGECKO_TO_BINANCE.get(coin_id)
-        if not symbol:
-            log_error(f"No Binance symbol mapping for {coin_id}", None)
-            return {"prices": [], "volumes": []}
-
-        # Calculate number of candles needed (daily)
-        limit = min(1000, days + 10)  # Binance limit is 1000 per request
-
-        url = f"https://api.binance.us/api/v3/klines"
-        params = {
-            "symbol": symbol,
-            "interval": "1d",
-            "limit": limit
-        }
-
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        klines = response.json()
-
-        # Convert klines to CoinGecko format: [[timestamp, price], ...]
-        prices = [[int(k[0]), float(k[4])] for k in klines]  # close price
-        volumes = [[int(k[0]), float(k[7])] for k in klines]  # quote asset volume
-
-        return {
-            "prices": prices[-days:],
-            "volumes": volumes[-days:]
-        }
-    except Exception as e:
-        log_error(f"Error fetching Binance OHLCV for {coin_id}", e)
-        return {"prices": [], "volumes": []}
-
 def fetch_market_chart(coin_id: str, days: int = 30) -> Dict:
-    """Fetch price and volume history for a coin from Binance (with caching).
+    """Fetch price and volume history for a coin from CoinGecko (with caching).
 
-    Uses Binance.us API for OHLCV data, with Redis caching to avoid repeated calls.
-    Cache TTL is 12 hours (sufficient for daily bars).
+    Uses Redis caching with 12h TTL to minimize API calls.
+    CoinGecko returns: { "prices": [[ts, price], ...], "total_volumes": [[ts, vol], ...] }
+    Normalized to expose "volumes" key for consistency.
     """
     try:
         # Check cache first
@@ -192,8 +134,16 @@ def fetch_market_chart(coin_id: str, days: int = 30) -> Dict:
         if cached:
             return cached
 
-        # Fetch from Binance
-        data = fetch_binance_ohlcv(coin_id, days)
+        # Fetch from CoinGecko
+        data = fetch_coingecko(f"/coins/{coin_id}/market_chart", {
+            "vs_currency": "usd",
+            "days": days,
+            "interval": "daily"
+        })
+
+        # Normalize: CoinGecko uses "total_volumes"; expose as both keys
+        if "total_volumes" in data and "volumes" not in data:
+            data["volumes"] = data["total_volumes"]
 
         # Cache for 12 hours
         if data.get("prices"):
