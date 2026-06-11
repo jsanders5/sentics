@@ -3,10 +3,10 @@ Agent 2: Candidate Discovery & Technical Filtering
 
 Filters coins from passing categories by:
 - RSI 40-72 (momentum sweet spot for crypto)
-- Volume >= 1.3x 24h average
-- Price >= both 20d and 50d moving averages
+- Volume >= 1.1x 30-day average (last completed trading day; excludes partial-day data)
+- Price >= 20d SMA (50d SMA scored but not a hard gate)
 
-Scores candidates: 50% technical alignment + 50% category momentum
+Scores candidates: 50% technical alignment (normalized 0-100) + 50% category momentum
 
 Output: Up to 50 ranked candidates for Agent 3 synthesis
 """
@@ -38,19 +38,38 @@ def passes_technical_filters(coin_data: Dict, prices: List[float], volumes: List
         if not (40 <= rsi <= 72):
             return False
 
-        # Volume filter: >= 1.3x average
-        avg_24h_volume = sum(volumes[-1:]) / 1 if volumes else 0
-        avg_volume_30d = statistics.mean(volumes[-30:]) if len(volumes) >= 30 else avg_24h_volume
-        volume_ratio = avg_24h_volume / avg_volume_30d if avg_volume_30d > 0 else 0
+        # Volume filter: >= 1.1x 30-day average (last COMPLETED day vs. prior 30 completed days).
+        # CoinGecko daily market_chart includes the current partial calendar day as the final
+        # data point, which contains only the volume accrued up to the most recent hourly
+        # update. Comparing that partial figure against 30 full trading days systematically
+        # produces ratios of 0.5–0.7x mid-day, making the filter structurally impossible to
+        # pass. Fix: use volumes[:-1] (drop today's partial entry) so both numerator and
+        # denominator are completed trading days.
+        completed_volumes = volumes[:-1] if len(volumes) > 1 else volumes
+        if not completed_volumes:
+            return False
+        last_completed_vol = completed_volumes[-1]
+        avg_volume_30d = (
+            statistics.mean(completed_volumes[-30:]) if len(completed_volumes) >= 30
+            else statistics.mean(completed_volumes)
+        )
+        volume_ratio = last_completed_vol / avg_volume_30d if avg_volume_30d > 0 else 0
 
-        if volume_ratio < 1.3:
+        # Threshold: 1.1x (soft floor — excludes dead/inactive coins only).
+        # The original 1.3x breakout threshold is now handled by the volume score in
+        # calculate_technical_score, which rewards higher volume ratios continuously
+        # rather than binary-gating at a single cutoff.
+        if volume_ratio < 1.1:
             return False
 
-        # MA filter: price >= both 20d and 50d MA
+        # MA filter: price >= 20d MA (primary trend gate).
+        # The 50d MA check is retained in calculate_technical_score as a scoring factor.
+        # Requiring BOTH MAs as a hard gate eliminates coins in valid consolidation near
+        # support — the 50d MA score already penalizes coins trading below it without
+        # categorically blocking them.
         ma_20 = calculate_moving_average(prices, 20)
-        ma_50 = calculate_moving_average(prices, 50)
 
-        if current_price < ma_20 or current_price < ma_50:
+        if current_price < ma_20:
             return False
 
         return True
@@ -74,10 +93,14 @@ def calculate_technical_score(coin_data: Dict, prices: List[float], volumes: Lis
         rsi_diff = abs(rsi - 56)
         rsi_score = max(0, 20 - (rsi_diff * 0.2))
 
-        # Volume score
-        avg_24h_volume = sum(volumes[-1:]) / 1 if volumes else 0
-        avg_volume_30d = statistics.mean(volumes[-30:]) if len(volumes) >= 30 else avg_24h_volume
-        volume_ratio = avg_24h_volume / avg_volume_30d if avg_volume_30d > 0 else 0
+        # Volume score: use last COMPLETED day (same partial-day fix as passes_technical_filters)
+        completed_volumes = volumes[:-1] if len(volumes) > 1 else volumes
+        last_completed_vol = completed_volumes[-1] if completed_volumes else 0
+        avg_volume_30d = (
+            statistics.mean(completed_volumes[-30:]) if len(completed_volumes) >= 30
+            else statistics.mean(completed_volumes) if completed_volumes else 0
+        )
+        volume_ratio = last_completed_vol / avg_volume_30d if avg_volume_30d > 0 else 0
         volume_score = min(20, volume_ratio * 10)
 
         # MA score: price above both MAs
@@ -198,13 +221,23 @@ def run(agent1_result: Dict, category_coins_map: Dict = None) -> Dict:
                     # Score this candidate
                     technical_score = calculate_technical_score(coin, prices, volumes)
 
-                    # Candidate score: 50% technical alignment + 50% category momentum
-                    candidate_score = (technical_score * 0.5) + (category_momentum * 0.5)
+                    # Candidate score: 50% technical alignment + 50% category momentum.
+                    # technical_score is 0-58 (20 RSI + 20 volume + 18 MA); normalize to 0-100
+                    # before blending so both components have equal effective range.
+                    # Without normalization the blend is ~37% technical / 63% category because
+                    # the raw technical max (58) is 58% of the category max (100).
+                    _TECHNICAL_MAX = 58.0
+                    technical_normalized = (technical_score / _TECHNICAL_MAX) * 100
+                    candidate_score = (technical_normalized * 0.5) + (category_momentum * 0.5)
                     candidate_score = max(0, min(100, candidate_score))
 
-                    # Calculate volume ratio for reporting
-                    current_vol = volumes[-1] if volumes else 0
-                    avg_vol_30d = statistics.mean(volumes[-30:]) if len(volumes) >= 30 else current_vol
+                    # Calculate volume ratio for reporting (same partial-day fix)
+                    completed_vols = volumes[:-1] if len(volumes) > 1 else volumes
+                    current_vol = completed_vols[-1] if completed_vols else 0
+                    avg_vol_30d = (
+                        statistics.mean(completed_vols[-30:]) if len(completed_vols) >= 30
+                        else statistics.mean(completed_vols) if completed_vols else 0
+                    )
                     volume_ratio = round(current_vol / avg_vol_30d, 2) if avg_vol_30d > 0 else 0
 
                     candidate = {
