@@ -117,7 +117,7 @@ def fetch_top_50_coins() -> List[Dict]:
             "order": "market_cap_desc",
             "per_page": 50,
             "page": 1,
-            "sparkline": False
+            "sparkline": "false"
         })
 
         if data:
