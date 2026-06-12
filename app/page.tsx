@@ -12,8 +12,8 @@ import { useFilterState } from "@/app/hooks/useFilterState";
 import { Candidate } from "@/app/types";
 
 export default function DashboardPage() {
-  const { candidates, loading: loadingCandidates, timestamp } = useCandidates();
-  const { categories, loading: loadingCategories } = useCategories();
+  const { candidates, loading: loadingCandidates, error: candidatesError, timestamp } = useCandidates();
+  const { categories, loading: loadingCategories, error: categoriesError } = useCategories();
   const {
     filters,
     sortKey,
@@ -48,6 +48,33 @@ export default function DashboardPage() {
       setCategory("All");
     }
   };
+
+  // Show error state if both data sources failed
+  if ((candidatesError || categoriesError) && !loadingCandidates && !loadingCategories) {
+    return (
+      <div className="flex h-screen flex-col bg-[--bg-base]">
+        <Header timestamp={timestamp} />
+        <div className="flex flex-1 items-center justify-center p-6">
+          <div className="max-w-md text-center space-y-4">
+            <h2 className="text-xl font-semibold text-[--text-primary]">Unable to Load Data</h2>
+            <p className="text-sm text-[--text-secondary]">
+              {candidatesError || categoriesError}
+            </p>
+            <p className="text-xs text-[--text-muted]">
+              Please verify that Supabase environment variables are configured in Vercel:
+              SUPABASE_URL and SUPABASE_SECRET_KEY
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-lg bg-[--accent] px-4 py-2 font-semibold text-white hover:opacity-90 transition-opacity"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col bg-[--bg-base]">
