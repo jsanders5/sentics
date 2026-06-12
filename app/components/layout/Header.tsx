@@ -57,7 +57,7 @@ export function Header({ timestamp }: HeaderProps) {
             <div className="flex flex-col gap-0.5">
               <p style={{ color: 'var(--text-muted)' }} className="text-xs uppercase tracking-wider">Live Analysis</p>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--high)' }} className="animate-pulse" />
+                <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--high)' }} />
                 <span style={{ color: 'var(--text-secondary)' }} className="text-xs font-medium">
                   {time} UTC
                 </span>
