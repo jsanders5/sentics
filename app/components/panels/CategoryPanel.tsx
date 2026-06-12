@@ -23,7 +23,13 @@ export function CategoryPanel({
   );
 
   return (
-    <aside className="hidden md:flex w-56 flex-col border-r border-[--border] bg-[--bg-base] p-4 overflow-y-auto">
+    <aside
+      className="hidden md:flex w-56 flex-col p-4 overflow-y-auto"
+      style={{
+        backgroundColor: 'var(--bg-base)',
+        borderRight: '1px solid var(--border)'
+      }}
+    >
       <div className="mb-4">
         <h2 className="font-sans text-xs font-semibold uppercase tracking-wider text-[--text-secondary] mb-3">
           Category Momentum

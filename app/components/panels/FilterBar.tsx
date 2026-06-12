@@ -22,7 +22,13 @@ export function FilterBar({
   hasActiveFilters,
 }: FilterBarProps) {
   return (
-    <div className="border-b border-[--border] bg-[--bg-surface] px-6 py-3">
+    <div
+      className="px-6 py-3"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        borderBottom: '1px solid var(--border)'
+      }}
+    >
       <div className="flex items-center gap-3">
         <select
           value={filters.horizon || "All"}

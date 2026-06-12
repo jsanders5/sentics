@@ -81,7 +81,7 @@ export default function DashboardPage() {
 
   return (
     <ErrorBoundary>
-    <div className="flex h-screen flex-col bg-[--bg-base]">
+    <div className="flex h-screen flex-col" style={{ backgroundColor: 'var(--bg-base)' }}>
       <Header timestamp={timestamp} />
 
       <div className="flex flex-1 overflow-hidden">
