@@ -40,6 +40,18 @@
   --long-light: #60a5fa;
   --long-bg: rgba(59, 130, 246, 0.1);
 
+  --bullish: #10b981;
+  --bullish-bg: rgba(16, 185, 129, 0.1);
+  --bullish-border: rgba(16, 185, 129, 0.3);
+
+  --bearish: #ef4444;
+  --bearish-bg: rgba(239, 68, 68, 0.1);
+  --bearish-border: rgba(239, 68, 68, 0.3);
+
+  --neutral-dir: #6b7280;
+  --neutral-dir-bg: rgba(107, 114, 128, 0.1);
+  --neutral-dir-border: rgba(107, 114, 128, 0.3);
+
   --accent: #06b6d4;
   --accent-light: #22d3ee;
 
@@ -86,7 +98,7 @@ table {
 thead {
   background: var(--bg-surface);
   position: sticky;
-  top: 73px;
+  top: 0;
   z-index: 30;
 }
 

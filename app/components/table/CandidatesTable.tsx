@@ -70,65 +70,35 @@ export function CandidatesTable({
         <thead className="sticky top-0 z-30 bg-[--bg-surface] border-b border-[--border]">
           <tr>
             <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-8 bg-[--bg-surface]">
-              <SortButton
-                onClick={() => onSortChange("rank")}
-                isActive={sortKey === "rank"}
-                sortOrder={sortOrder}
-              >
+              <SortButton onClick={() => onSortChange("rank")} isActive={sortKey === "rank"} sortOrder={sortOrder}>
                 #
               </SortButton>
             </th>
             <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-16 bg-[--bg-surface]">
-              <SortButton
-                onClick={() => onSortChange("symbol")}
-                isActive={sortKey === "symbol"}
-                sortOrder={sortOrder}
-              >
+              <SortButton onClick={() => onSortChange("symbol")} isActive={sortKey === "symbol"} sortOrder={sortOrder}>
                 Symbol
               </SortButton>
             </th>
-            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] bg-[--bg-surface]">
-              <SortButton
-                onClick={() => onSortChange("symbol")}
-                isActive={sortKey === "symbol"}
-                sortOrder={sortOrder}
-              >
-                Name
+            <th className="hidden md:table-cell px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] bg-[--bg-surface]">
+              Name
+            </th>
+            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-32 bg-[--bg-surface]">
+              <SortButton onClick={() => onSortChange("direction")} isActive={sortKey === "direction"} sortOrder={sortOrder}>
+                Direction
               </SortButton>
             </th>
-            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-24 bg-[--bg-surface]">
-              <SortButton
-                onClick={() => onSortChange("category")}
-                isActive={sortKey === "category"}
-                sortOrder={sortOrder}
-              >
-                Category
-              </SortButton>
-            </th>
-            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-28 bg-[--bg-surface]">
-              <SortButton
-                onClick={() => onSortChange("horizon")}
-                isActive={sortKey === "horizon"}
-                sortOrder={sortOrder}
-              >
+            <th className="hidden sm:table-cell px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-28 bg-[--bg-surface]">
+              <SortButton onClick={() => onSortChange("horizon")} isActive={sortKey === "horizon"} sortOrder={sortOrder}>
                 Horizon
               </SortButton>
             </th>
-            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-32 bg-[--bg-surface]">
-              <SortButton
-                onClick={() => onSortChange("confidence")}
-                isActive={sortKey === "confidence"}
-                sortOrder={sortOrder}
-              >
+            <th className="hidden sm:table-cell px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-32 bg-[--bg-surface]">
+              <SortButton onClick={() => onSortChange("confidence")} isActive={sortKey === "confidence"} sortOrder={sortOrder}>
                 Confidence
               </SortButton>
             </th>
             <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-24 bg-[--bg-surface]">
-              <SortButton
-                onClick={() => onSortChange("score")}
-                isActive={sortKey === "score"}
-                sortOrder={sortOrder}
-              >
+              <SortButton onClick={() => onSortChange("score")} isActive={sortKey === "score"} sortOrder={sortOrder}>
                 Score
               </SortButton>
             </th>

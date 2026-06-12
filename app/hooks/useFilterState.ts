@@ -8,8 +8,8 @@ interface UseFilterStateResult {
   sortKey: SortKey;
   sortOrder: SortOrder;
   filteredAndSorted: (candidates: Candidate[]) => Candidate[];
+  setDirection: (direction: string) => void;
   setHorizon: (horizon: string) => void;
-  setCategory: (category: string) => void;
   setConfidence: (confidence: string) => void;
   setSortKey: (key: SortKey) => void;
   clearFilters: () => void;
@@ -18,22 +18,22 @@ interface UseFilterStateResult {
 
 export function useFilterState(): UseFilterStateResult {
   const [filters, setFilters] = useState<FilterState>({
+    direction: "All",
     horizon: "All",
-    category: "All",
     confidence: "All",
   });
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   const hasActiveFilters =
-    filters.horizon !== "All" || filters.category !== "All" || filters.confidence !== "All";
+    filters.direction !== "All" || filters.horizon !== "All" || filters.confidence !== "All";
+
+  const setDirection = useCallback((direction: string) => {
+    setFilters((prev) => ({ ...prev, direction: direction as any }));
+  }, []);
 
   const setHorizon = useCallback((horizon: string) => {
     setFilters((prev) => ({ ...prev, horizon: horizon as any }));
-  }, []);
-
-  const setCategory = useCallback((category: string) => {
-    setFilters((prev) => ({ ...prev, category }));
   }, []);
 
   const setConfidence = useCallback((confidence: string) => {
@@ -41,27 +41,25 @@ export function useFilterState(): UseFilterStateResult {
   }, []);
 
   const clearFilters = useCallback(() => {
-    setFilters({ horizon: "All", category: "All", confidence: "All" });
+    setFilters({ direction: "All", horizon: "All", confidence: "All" });
   }, []);
 
   const filteredAndSorted = useCallback(
     (candidates: Candidate[]): Candidate[] => {
       let result = [...candidates];
 
-      // Apply filters
-      if (filters.horizon && filters.horizon !== "All") {
-        result = result.filter((c) => c.time_horizon === filters.horizon);
+      if (filters.direction && filters.direction !== "All") {
+        result = result.filter((c) => c.direction === filters.direction);
       }
 
-      if (filters.category && filters.category !== "All") {
-        result = result.filter((c) => c.category === filters.category);
+      if (filters.horizon && filters.horizon !== "All") {
+        result = result.filter((c) => c.time_horizon === filters.horizon);
       }
 
       if (filters.confidence && filters.confidence !== "All") {
         result = result.filter((c) => c.confidence_tier === filters.confidence);
       }
 
-      // Apply sort
       result.sort((a, b) => {
         let aVal: any;
         let bVal: any;
@@ -73,9 +71,10 @@ export function useFilterState(): UseFilterStateResult {
             aVal = a.symbol;
             bVal = b.symbol;
             break;
-          case "category":
-            aVal = a.category;
-            bVal = b.category;
+          case "direction":
+            const dirOrder = { Bullish: 3, Neutral: 2, Bearish: 1 };
+            aVal = dirOrder[a.direction as keyof typeof dirOrder] || 0;
+            bVal = dirOrder[b.direction as keyof typeof dirOrder] || 0;
             break;
           case "horizon":
             aVal = a.time_horizon || "";
@@ -120,8 +119,8 @@ export function useFilterState(): UseFilterStateResult {
     sortKey,
     sortOrder,
     filteredAndSorted,
+    setDirection,
     setHorizon,
-    setCategory,
     setConfidence,
     setSortKey: handleSortKeyChange,
     clearFilters,

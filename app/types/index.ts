@@ -7,19 +7,21 @@ export interface Category {
 
 export type TimeHorizon = "Short" | "Medium" | "Long";
 export type ConfidenceTier = "High" | "Medium" | "Low";
+export type Direction = "Bullish" | "Bearish" | "Neutral";
 export type EntryType = "Breakout" | "Retest" | "Dip-Buy";
 export type EntryQuality = "Strong" | "Moderate" | "Speculative";
 
 export interface Candidate {
   symbol: string;
   name: string;
-  category: string;
+  category?: string;
   price: number;
   rsi: number;
   volume_ratio: number;
   technical_score: number;
   category_momentum: number;
   candidate_score: number;
+  direction?: Direction;
   time_horizon?: TimeHorizon;
   confidence_tier?: ConfidenceTier;
   entry_type?: EntryType;
@@ -38,11 +40,11 @@ export interface PipelineRun {
   low_signal_environment?: boolean;
 }
 
-export type SortKey = "rank" | "symbol" | "category" | "horizon" | "confidence" | "score";
+export type SortKey = "rank" | "symbol" | "direction" | "horizon" | "confidence" | "score";
 export type SortOrder = "asc" | "desc" | null;
 
 export interface FilterState {
   horizon?: TimeHorizon | "All";
-  category?: string | "All";
+  direction?: Direction | "All";
   confidence?: ConfidenceTier | "All";
 }

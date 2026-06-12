@@ -108,6 +108,7 @@ export default async function handler(
       technical_score: typeof c.technical_score === 'number' ? c.technical_score : 0,
       category_momentum: typeof c.category_momentum === 'number' ? c.category_momentum : 0,
       candidate_score: typeof c.score === 'number' ? c.score : 0,
+      direction: c.direction,
       time_horizon: c.time_horizon,
       confidence_tier: c.confidence_tier,
       rationale: c.rationale,

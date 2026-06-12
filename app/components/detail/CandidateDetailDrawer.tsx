@@ -4,6 +4,7 @@ import { Candidate } from "@/app/types";
 import { useEffect, useRef } from "react";
 import { ConfidenceBadge } from "@/app/components/shared/ConfidenceBadge";
 import { HorizonBadge } from "@/app/components/shared/HorizonBadge";
+import { DirectionBadge } from "@/app/components/shared/DirectionBadge";
 import { ScoreDisplay } from "@/app/components/shared/ScoreDisplay";
 
 interface CandidateDetailDrawerProps {
@@ -25,9 +26,7 @@ export function CandidateDetailDrawer({
     }
 
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
+      if (e.key === "Escape" && isOpen) onClose();
     };
 
     if (isOpen) {
@@ -43,57 +42,69 @@ export function CandidateDetailDrawer({
 
   if (!candidate) return null;
 
+  const directionBg =
+    candidate.direction === "Bullish"
+      ? "var(--bullish-bg)"
+      : candidate.direction === "Bearish"
+      ? "var(--bearish-bg)"
+      : "var(--neutral-dir-bg)";
+
+  const directionBorder =
+    candidate.direction === "Bullish"
+      ? "var(--bullish-border)"
+      : candidate.direction === "Bearish"
+      ? "var(--bearish-border)"
+      : "var(--neutral-dir-border)";
+
   return (
     <>
-      {/* Backdrop */}
       {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 transition-opacity"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 z-40 bg-black/50 transition-opacity" onClick={onClose} />
       )}
 
-      {/* Drawer */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 w-full md:w-96 overflow-y-auto transition-transform duration-300 md:border-l ${
+        className={`fixed inset-y-0 right-0 z-50 w-full md:w-[420px] overflow-y-auto transition-transform duration-300 md:border-l ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
-        style={{
-          backgroundColor: 'var(--bg-surface)',
-          borderLeft: 'var(--border)'
-        }}
+        style={{ backgroundColor: 'var(--bg-surface)', borderLeftColor: 'var(--border)' }}
       >
         <div className="space-y-6 p-6">
           {/* Header */}
           <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2 flex-1">
-              <div className="flex items-center gap-2">
-                <h2 className="font-mono text-2xl font-bold text-[--text-primary]">
-                  {candidate.symbol}
-                </h2>
-              </div>
-              <p className="text-sm text-[--text-secondary]">{candidate.name}</p>
-              <p className="text-xs text-[--text-muted]">{candidate.category}</p>
+            <div>
+              <h2 className="font-mono text-2xl font-bold text-[--text-primary]">
+                {candidate.symbol}
+              </h2>
+              <p className="text-sm text-[--text-secondary] mt-0.5">{candidate.name}</p>
             </div>
             <button
               ref={closeButtonRef}
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded hover:bg-[--bg-raised] text-[--text-secondary] hover:text-[--text-primary] transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded hover:bg-[--bg-raised] text-[--text-secondary] hover:text-[--text-primary] transition-colors flex-shrink-0"
               aria-label="Close detail panel"
             >
               ×
             </button>
           </div>
 
-          {/* Badges and Score */}
+          {/* Direction Hero */}
+          {candidate.direction && (
+            <div
+              className="rounded-xl p-4 border"
+              style={{ backgroundColor: directionBg, borderColor: directionBorder }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wider text-[--text-muted] mb-2">
+                Price Direction
+              </p>
+              <DirectionBadge direction={candidate.direction} size="lg" />
+            </div>
+          )}
+
+          {/* Horizon + Confidence + Score */}
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
-              {candidate.time_horizon && (
-                <HorizonBadge horizon={candidate.time_horizon} />
-              )}
-              {candidate.confidence_tier && (
-                <ConfidenceBadge tier={candidate.confidence_tier} />
-              )}
+              {candidate.time_horizon && <HorizonBadge horizon={candidate.time_horizon} />}
+              {candidate.confidence_tier && <ConfidenceBadge tier={candidate.confidence_tier} />}
             </div>
             <div>
               <p className="text-xs text-[--text-secondary] mb-1">Overall Score</p>
@@ -131,7 +142,7 @@ export function CandidateDetailDrawer({
               <div className="h-1 w-full rounded-full bg-[--bg-raised]">
                 <div
                   className="h-full rounded-full bg-[--medium]"
-                  style={{ width: `${Math.min((candidate.rsi / 100) * 100, 100)}%` }}
+                  style={{ width: `${Math.min(candidate.rsi, 100)}%` }}
                 />
               </div>
 
@@ -148,13 +159,6 @@ export function CandidateDetailDrawer({
                   {candidate.technical_score.toFixed(1)}/58
                 </span>
               </div>
-
-              <div className="flex items-center justify-between pt-2">
-                <span className="text-[--text-secondary]">Category Momentum</span>
-                <span className="font-mono font-semibold text-[--text-primary]">
-                  {candidate.category_momentum.toFixed(1)}/100
-                </span>
-              </div>
             </div>
           </div>
 
@@ -167,7 +171,18 @@ export function CandidateDetailDrawer({
               <div className="space-y-1">
                 {candidate.key_signals.map((signal, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm text-[--text-primary]">
-                    <span className="text-[--accent] mt-0.5">•</span>
+                    <span
+                      className="mt-0.5"
+                      style={{
+                        color: candidate.direction === "Bullish"
+                          ? 'var(--bullish)'
+                          : candidate.direction === "Bearish"
+                          ? 'var(--bearish)'
+                          : 'var(--accent)'
+                      }}
+                    >
+                      •
+                    </span>
                     <span>{signal}</span>
                   </div>
                 ))}
@@ -175,21 +190,24 @@ export function CandidateDetailDrawer({
             </div>
           )}
 
-          {/* Price Info */}
+          {/* Price */}
           <div className="space-y-2 border-t border-[--border] pt-6">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">
               Price
             </h3>
             <div className="font-mono text-lg font-semibold text-[--text-primary]">
-              {candidate.price && typeof candidate.price === 'number' ? `$${candidate.price.toFixed(2)}` : 'N/A'}
+              {candidate.price && typeof candidate.price === 'number' && candidate.price > 0
+                ? `$${candidate.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : 'N/A'}
             </div>
           </div>
 
           {/* Disclaimer */}
           <div className="border-t border-[--border] pt-6 text-xs text-[--text-muted]">
             <p className="italic">
-              This analysis is for educational purposes only and should not be construed as investment
-              advice. Always conduct your own research before making any investment decisions.
+              This analysis is for educational purposes only and should not be construed as
+              investment advice. Always conduct your own research before making any investment
+              decisions.
             </p>
           </div>
         </div>
