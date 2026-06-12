@@ -20,16 +20,23 @@ export function useCandidates(): UseCandidatesResult {
     const fetchCandidates = async () => {
       try {
         setLoading(true);
+        console.log("[useCandidates] Fetching candidates...");
         const response = await fetch("/api/candidates");
+        console.log("[useCandidates] Response status:", response.status);
         if (!response.ok) {
+          const text = await response.text();
+          console.error("[useCandidates] Error response:", text);
           throw new Error(`API error: ${response.status}`);
         }
         const data = await response.json();
+        console.log("[useCandidates] Data loaded:", data.candidates?.length || 0, "candidates");
         setCandidates(data.candidates || []);
         setTimestamp(data.timestamp || new Date().toISOString());
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load candidates");
+        const errMsg = err instanceof Error ? err.message : "Failed to load candidates";
+        console.error("[useCandidates] Error:", errMsg);
+        setError(errMsg);
         setCandidates([]);
       } finally {
         setLoading(false);

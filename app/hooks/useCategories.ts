@@ -18,15 +18,22 @@ export function useCategories(): UseCategoriesResult {
     const fetchCategories = async () => {
       try {
         setLoading(true);
+        console.log("[useCategories] Fetching categories...");
         const response = await fetch("/api/categories");
+        console.log("[useCategories] Response status:", response.status);
         if (!response.ok) {
+          const text = await response.text();
+          console.error("[useCategories] Error response:", text);
           throw new Error(`API error: ${response.status}`);
         }
         const data = await response.json();
+        console.log("[useCategories] Data loaded:", data.categories?.length || 0, "categories");
         setCategories(data.categories || []);
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load categories");
+        const errMsg = err instanceof Error ? err.message : "Failed to load categories";
+        console.error("[useCategories] Error:", errMsg);
+        setError(errMsg);
         setCategories([]);
       } finally {
         setLoading(false);
