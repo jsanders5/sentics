@@ -6,7 +6,7 @@ interface HeaderProps {
   timestamp?: string | null;
 }
 
-function formatTime(isoString?: string): string {
+function formatTime(isoString?: string | null): string {
   if (!isoString) return "Unknown";
   const date = new Date(isoString);
   return date.toLocaleTimeString("en-US", {
@@ -16,7 +16,7 @@ function formatTime(isoString?: string): string {
   });
 }
 
-function getHoursAgo(isoString?: string): number {
+function getHoursAgo(isoString?: string | null): number {
   if (!isoString) return 0;
   const date = new Date(isoString);
   const now = new Date();
