@@ -31,35 +31,52 @@ export function Header({ timestamp }: HeaderProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-[--border] bg-[--bg-base]/95 backdrop-blur-sm px-6 py-4">
+      <header
+        style={{
+          backgroundColor: 'var(--bg-base)',
+          borderBottom: '1px solid var(--border)',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+        }}
+        className="sticky top-0 z-40 px-8 py-6"
+      >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-baseline gap-1.5">
-              <h1 className="font-sans text-2xl font-bold bg-gradient-to-r from-[--accent] to-[--medium-h] bg-clip-text text-transparent">
+          {/* Left side - Logo and branding */}
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-1">
+              <h1
+                style={{ color: 'var(--accent)' }}
+                className="text-3xl font-bold tracking-tight"
+              >
                 Sentics
               </h1>
-              <span className="text-xs font-semibold uppercase tracking-widest text-[--text-secondary]">
-                STI
-              </span>
+              <p style={{ color: 'var(--text-secondary)' }} className="text-xs font-semibold uppercase tracking-widest">
+                AI Trading Intelligence
+              </p>
             </div>
-            <div className="w-px h-6 bg-[--border]" />
-            <span className="text-sm font-medium text-[--text-secondary]">
-              Trading Intelligence
-            </span>
-          </div>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 text-xs text-[--text-muted]">
-              <div className="w-2 h-2 rounded-full bg-[--high] animate-pulse" />
-              <span>Last update: {time} UTC</span>
-              {hoursAgo > 0 && <span className="text-[--text-secondary]">• {hoursAgo}h ago</span>}
+            <div style={{ backgroundColor: 'var(--border)' }} className="w-px h-12" />
+            <div className="flex flex-col gap-0.5">
+              <p style={{ color: 'var(--text-muted)' }} className="text-xs uppercase tracking-wider">Live Analysis</p>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--high)' }} className="animate-pulse" />
+                <span style={{ color: 'var(--text-secondary)' }} className="text-xs font-medium">
+                  {time} UTC
+                </span>
+              </div>
             </div>
-            <button
-              onClick={() => setShowDisclaimer(true)}
-              className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary] hover:text-[--accent] transition-smooth px-3 py-1.5 rounded-md hover:bg-[--bg-surface]"
-            >
-              Disclaimer
-            </button>
           </div>
+
+          {/* Right side - Actions */}
+          <button
+            onClick={() => setShowDisclaimer(true)}
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              color: 'var(--accent)',
+              border: '1px solid var(--border)'
+            }}
+            className="px-4 py-2 rounded-lg font-semibold text-sm uppercase tracking-wider hover:opacity-80 transition-all"
+          >
+            Disclaimer
+          </button>
         </div>
       </header>
 
