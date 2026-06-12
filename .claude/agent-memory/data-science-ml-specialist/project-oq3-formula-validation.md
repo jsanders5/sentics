@@ -27,10 +27,23 @@ OQ#3 was answered on 2026-06-09. The formulas are analytically defensible as v1.
 - On-chain signal boost: 15% (accepted; additive points +5/+3/+4 are accepted as v1.0 defaults)
 - ONE ADJUSTMENT RECOMMENDED: exchange net flow boost should be +5 (not +3), active addresses should be +3 (not +5). Rationale: exchange flow is more directly tied to supply dynamics than address count.
 
-## Technical Filter Assessment
-- RSI 40–72: ACCEPTED. Upper bound of 72 (not 70) is specifically correct for crypto.
-- Volume 1.3x: ACCEPTED. Crypto-appropriate lower bar vs. equities 1.5x.
-- Price >= 20d SMA AND 50d SMA: ACCEPTED. Dual-MA requirement reduces false positives.
+## Technical Filter Assessment (updated 2026-06-10 after live run producing 0 candidates)
+
+Two bugs were found and fixed:
+
+**Bug 1 (Critical): Volume filter was comparing today's partial-day CoinGecko volume against 30 full trading days.**
+CoinGecko market_chart daily endpoint includes the current partial UTC calendar day as the final data point. At 14:00 UTC that entry contains ~58% of a normal day's volume. The original code used `volumes[-1]` (partial) as the numerator against a 30-day mean that included 29 complete days + the same partial entry. This systematically produced ratios of 0.5–0.7x, making the 1.3x gate structurally impossible to pass during any mid-day run. Fix: use `volumes[:-1]` (drop partial day) consistently in all three volume ratio calculations (filter, scoring, reporting).
+
+**Bug 2 (Structural): Technical score range 0–58 was blended 50/50 with category score range 0–100.**
+The raw blend produced effective weights of ~37% technical / ~63% category, not 50/50. Candidate score max was 79, not 100. Fix: normalize technical_score to 0–100 (`technical_score / 58.0 * 100`) before blending.
+
+**Threshold changes made:**
+- Volume gate: 1.3x → 1.1x. Rationale: 1.3x is a breakout signal; for a daily pipeline, it eliminates all candidates in consolidating markets. Volume SCORING still rewards higher ratios continuously via `min(20, ratio * 10)`. The 1.1x floor only excludes dead/inactive coins.
+- MA gate: price >= 20d AND 50d SMA → price >= 20d SMA only. Rationale: 50d MA is retained as a scoring factor in `calculate_technical_score` via `ma_above_50`; removing it from the hard gate prevents categorically blocking coins in valid consolidation near 50d support.
+
+**Still to validate empirically:** These adjusted thresholds (1.1x, 20d-only MA gate) have not been backtested. They are operational fixes for the daily pipeline. Empirical threshold calibration is part of the mandatory pre-launch backtest.
+
+- RSI 40–72: STILL ACCEPTED. Upper bound of 72 (not 70) is specifically correct for crypto.
 
 ## Pre-Launch Backtest Requirements (mandatory gate)
 - Data: CoinGecko Pro OHLCV for top 50 coins, daily candles, 3–5 years minimum

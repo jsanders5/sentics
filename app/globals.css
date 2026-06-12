@@ -1,26 +1,163 @@
 @import "tailwindcss";
 
+/* Dark mode (default) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  /* Backgrounds - three depth levels */
+  --bg-base: #0d1117;
+  --bg-surface: #161b22;
+  --bg-raised: #1c2128;
+  --border: #30363d;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Text */
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+
+  /* Semantic - confidence tiers */
+  --high: #3fb950;
+  --high-bg: #0d1f12;
+  --high-border: #1a3d22;
+
+  --medium: #d29922;
+  --medium-bg: #1f1800;
+  --medium-border: #3d2d00;
+
+  --low: #8b949e;
+  --low-bg: #161b22;
+  --low-border: #30363d;
+
+  /* Time horizons */
+  --short: #f85149;
+  --short-bg: #1f0c0c;
+
+  --medium-h: #ffa657;
+  --medium-h-bg: #1f1200;
+
+  --long: #79c0ff;
+  --long-bg: #0d1a2d;
+
+  /* Accent */
+  --accent: #1f6feb;
+  --focus: rgba(56, 139, 253, 0.3);
+
+  /* Status */
+  --staleness-bg: #2d2208;
+  --staleness-text: #ffa657;
+  --staleness-border: #7d4e00;
+
+  --low-signal-bg: #0d2340;
+  --low-signal-text: #79c0ff;
+
+  /* Fonts */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
+@theme inline {
+  --color-background: var(--bg-base);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+/* Light mode */
+@media (prefers-color-scheme: light) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg-base: #ffffff;
+    --bg-surface: #f6f8fa;
+    --bg-raised: #eaeef2;
+    --border: #d0d7de;
+
+    --text-primary: #24292f;
+    --text-secondary: #57606a;
+    --text-muted: #6e7781;
+
+    --high: #1a7f37;
+    --high-bg: #dafbe1;
+    --high-border: #34d399;
+
+    --medium: #9e6a03;
+    --medium-bg: #fff8c5;
+    --medium-border: #fbca04;
+
+    --low: #57606a;
+    --low-bg: #f6f8fa;
+    --low-border: #d0d7de;
+
+    --short: #da3633;
+    --short-bg: #ffebe9;
+
+    --medium-h: #fb8500;
+    --medium-h-bg: #fff5eb;
+
+    --long: #0969da;
+    --long-bg: #ddf4ff;
+
+    --accent: #0969da;
+    --focus: rgba(9, 105, 218, 0.2);
+
+    --staleness-bg: #fff5eb;
+    --staleness-text: #fb8500;
+    --staleness-border: #fbbf24;
+
+    --low-signal-bg: #ddf4ff;
+    --low-signal-text: #0969da;
   }
 }
 
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Utility classes for color tokens */
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.bg-surface {
+  background-color: var(--bg-surface);
+}
+
+.bg-raised {
+  background-color: var(--bg-raised);
+}
+
+.border-default {
+  border-color: var(--border);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

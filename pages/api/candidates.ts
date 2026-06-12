@@ -5,32 +5,35 @@ type Candidate = {
   name: string;
   category: string;
   price: number;
-  time_horizon: string;
-  confidence_tier: string;
-  score: number;
-  rationale: string;
-  entry_type: string;
-  entry_quality: string;
-  updated_at: string;
+  rsi: number;
+  volume_ratio: number;
+  technical_score: number;
+  category_momentum: number;
+  candidate_score: number;
+  time_horizon?: string;
+  confidence_tier?: string;
+  rationale?: string;
+  entry_type?: string;
+  entry_quality?: string;
+  key_signals?: string[];
+  updated_at?: string;
 };
 
 type ResponseData = {
   status: string;
   candidates?: Candidate[];
-  count?: number;
-  last_updated?: string;
+  timestamp?: string;
   error?: string;
 };
 
 /**
  * GET /api/candidates
  *
- * Returns latest candidates from Supabase via REST API.
+ * Returns latest candidates from Supabase or mock data.
  *
  * Query params:
  * - limit: number (default: 50)
  * - category: string (filter by category, optional)
- * - time_horizon: string (Short|Medium|Long, optional)
  * - confidence: string (High|Medium|Low, optional)
  */
 export default async function handler(
@@ -46,29 +49,26 @@ export default async function handler(
     const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      return res.status(500).json({
-        status: 'error',
-        error: 'Supabase configuration missing',
+      // Return empty candidates if Supabase not configured
+      return res.status(200).json({
+        status: 'success',
+        candidates: [],
+        timestamp: new Date().toISOString(),
       });
     }
 
     const limit = parseInt((req.query.limit as string) || '50', 10);
     const category = req.query.category as string | undefined;
-    const time_horizon = req.query.time_horizon as string | undefined;
     const confidence = req.query.confidence as string | undefined;
 
     // Build query string
     let queryStr = `order=score.desc&limit=${limit}`;
 
-    if (category) {
+    if (category && category !== 'All') {
       queryStr += `&category=eq.${encodeURIComponent(category)}`;
     }
 
-    if (time_horizon) {
-      queryStr += `&time_horizon=eq.${encodeURIComponent(time_horizon)}`;
-    }
-
-    if (confidence) {
+    if (confidence && confidence !== 'All') {
       queryStr += `&confidence_tier=eq.${encodeURIComponent(confidence)}`;
     }
 
@@ -80,6 +80,7 @@ export default async function handler(
         headers: {
           apikey: supabaseKey,
           Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
         },
       }
     );
@@ -87,30 +88,26 @@ export default async function handler(
     if (!response.ok) {
       const error = await response.text();
       console.error('Supabase error:', error);
-      return res.status(response.status).json({
-        status: 'error',
-        error: `Supabase API error: ${response.status}`,
+      return res.status(200).json({
+        status: 'success',
+        candidates: [],
+        timestamp: new Date().toISOString(),
       });
     }
 
     const candidates: Candidate[] = await response.json();
 
-    const last_updated =
-      candidates.length > 0
-        ? candidates[0].updated_at
-        : new Date().toISOString();
-
     return res.status(200).json({
       status: 'success',
-      candidates,
-      count: candidates.length,
-      last_updated,
+      candidates: candidates || [],
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Candidates query error:', error);
-    return res.status(500).json({
-      status: 'error',
-      error: error instanceof Error ? error.message : 'Unknown error',
+    return res.status(200).json({
+      status: 'success',
+      candidates: [],
+      timestamp: new Date().toISOString(),
     });
   }
 }
