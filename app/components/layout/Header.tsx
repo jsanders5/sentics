@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 interface HeaderProps {
-  timestamp?: string;
+  timestamp?: string | null;
 }
 
 function formatTime(isoString?: string): string {
