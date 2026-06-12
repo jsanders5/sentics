@@ -67,7 +67,7 @@ export function CandidatesTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse">
-        <thead className="sticky top-[73px] z-30 bg-[--bg-surface] border-b border-[--border]">
+        <thead className="sticky top-0 z-30 bg-[--bg-surface] border-b border-[--border]">
           <tr>
             <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-8 bg-[--bg-surface]">
               <SortButton

@@ -206,6 +206,14 @@ def run(agent1_result: Dict, category_coins_map: Dict = None) -> Dict:
                 f"from {len(category_coins)} coins checked"
             )
 
+        # Deduplicate by symbol (keep highest score for each symbol)
+        seen_symbols = {}
+        for candidate in candidates:
+            symbol = candidate["symbol"]
+            if symbol not in seen_symbols or candidate["candidate_score"] > seen_symbols[symbol]["candidate_score"]:
+                seen_symbols[symbol] = candidate
+        candidates = list(seen_symbols.values())
+
         # Sort by candidate score descending, limit to 50
         candidates.sort(key=lambda x: x["candidate_score"], reverse=True)
         candidates = candidates[:50]

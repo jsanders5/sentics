@@ -181,7 +181,7 @@ export function CandidateDetailDrawer({
               Price
             </h3>
             <div className="font-mono text-lg font-semibold text-[--text-primary]">
-              ${candidate.price.toFixed(2)}
+              {candidate.price && typeof candidate.price === 'number' ? `$${candidate.price.toFixed(2)}` : 'N/A'}
             </div>
           </div>
 
