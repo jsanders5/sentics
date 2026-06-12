@@ -55,9 +55,13 @@ export function CandidateDetailDrawer({
 
       {/* Drawer */}
       <div
-        className={`fixed right-0 top-0 z-50 h-full w-96 overflow-y-auto bg-[--bg-surface] border-l border-[--border] transition-transform duration-300 ${
+        className={`fixed inset-y-0 right-0 z-50 w-full md:w-96 overflow-y-auto transition-transform duration-300 md:border-l ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          borderLeft: 'var(--border)'
+        }}
       >
         <div className="space-y-6 p-6">
           {/* Header */}
