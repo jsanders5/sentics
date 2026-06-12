@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { Header } from "@/app/components/layout/Header";
 import { CategoryPanel } from "@/app/components/panels/CategoryPanel";
 import { FilterBar } from "@/app/components/panels/FilterBar";
@@ -52,31 +53,34 @@ export default function DashboardPage() {
   // Show error state if both data sources failed
   if ((candidatesError || categoriesError) && !loadingCandidates && !loadingCategories) {
     return (
-      <div className="flex h-screen flex-col bg-[--bg-base]">
-        <Header timestamp={timestamp} />
-        <div className="flex flex-1 items-center justify-center p-6">
-          <div className="max-w-md text-center space-y-4">
-            <h2 className="text-xl font-semibold text-[--text-primary]">Unable to Load Data</h2>
-            <p className="text-sm text-[--text-secondary]">
-              {candidatesError || categoriesError}
-            </p>
-            <p className="text-xs text-[--text-muted]">
-              Please verify that Supabase environment variables are configured in Vercel:
-              SUPABASE_URL and SUPABASE_SECRET_KEY
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-4 rounded-lg bg-[--accent] px-4 py-2 font-semibold text-white hover:opacity-90 transition-opacity"
-            >
-              Reload Page
-            </button>
+      <ErrorBoundary>
+        <div className="flex h-screen flex-col bg-[--bg-base]">
+          <Header timestamp={timestamp} />
+          <div className="flex flex-1 items-center justify-center p-6">
+            <div className="max-w-md text-center space-y-4">
+              <h2 className="text-xl font-semibold text-[--text-primary]">Unable to Load Data</h2>
+              <p className="text-sm text-[--text-secondary]">
+                {candidatesError || categoriesError}
+              </p>
+              <p className="text-xs text-[--text-muted]">
+                Please verify that Supabase environment variables are configured in Vercel:
+                SUPABASE_URL and SUPABASE_SECRET_KEY
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 rounded-lg bg-[--accent] px-4 py-2 font-semibold text-white hover:opacity-90 transition-opacity"
+              >
+                Reload Page
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </ErrorBoundary>
     );
   }
 
   return (
+    <ErrorBoundary>
     <div className="flex h-screen flex-col bg-[--bg-base]">
       <Header timestamp={timestamp} />
 
@@ -137,5 +141,6 @@ export default function DashboardPage() {
         />
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

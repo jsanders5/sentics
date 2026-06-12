@@ -3,50 +3,50 @@
 /* Dark mode (default) */
 :root {
   /* Backgrounds - three depth levels */
-  --bg-base: #0d1117;
-  --bg-surface: #161b22;
-  --bg-raised: #1c2128;
-  --border: #30363d;
+  --bg-base: #09090b;
+  --bg-surface: #111216;
+  --bg-raised: #18191e;
+  --border: #27272e;
 
   /* Text */
-  --text-primary: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-muted: #6e7681;
+  --text-primary: #fafafa;
+  --text-secondary: #a0a0a0;
+  --text-muted: #727272;
 
   /* Semantic - confidence tiers */
-  --high: #3fb950;
-  --high-bg: #0d1f12;
-  --high-border: #1a3d22;
+  --high: #10b981;
+  --high-bg: #051f13;
+  --high-border: #065f46;
 
-  --medium: #d29922;
-  --medium-bg: #1f1800;
-  --medium-border: #3d2d00;
+  --medium: #f59e0b;
+  --medium-bg: #1f1209;
+  --medium-border: #78350f;
 
-  --low: #8b949e;
-  --low-bg: #161b22;
-  --low-border: #30363d;
+  --low: #6b7280;
+  --low-bg: #111216;
+  --low-border: #27272e;
 
   /* Time horizons */
-  --short: #f85149;
-  --short-bg: #1f0c0c;
+  --short: #ef4444;
+  --short-bg: #1f0f0f;
 
-  --medium-h: #ffa657;
-  --medium-h-bg: #1f1200;
+  --medium-h: #f97316;
+  --medium-h-bg: #1f1207;
 
-  --long: #79c0ff;
-  --long-bg: #0d1a2d;
+  --long: #3b82f6;
+  --long-bg: #0f172a;
 
   /* Accent */
-  --accent: #1f6feb;
-  --focus: rgba(56, 139, 253, 0.3);
+  --accent: #06b6d4;
+  --focus: rgba(6, 182, 212, 0.15);
 
   /* Status */
   --staleness-bg: #2d2208;
-  --staleness-text: #ffa657;
-  --staleness-border: #7d4e00;
+  --staleness-text: #fbbf24;
+  --staleness-border: #b45309;
 
-  --low-signal-bg: #0d2340;
-  --low-signal-text: #79c0ff;
+  --low-signal-bg: #0d1f3c;
+  --low-signal-text: #60a5fa;
 
   /* Fonts */
   --font-sans: var(--font-geist-sans);
@@ -63,45 +63,45 @@
 /* Light mode */
 @media (prefers-color-scheme: light) {
   :root {
-    --bg-base: #ffffff;
-    --bg-surface: #f6f8fa;
-    --bg-raised: #eaeef2;
-    --border: #d0d7de;
+    --bg-base: #fafaf9;
+    --bg-surface: #f5f5f5;
+    --bg-raised: #efefef;
+    --border: #e5e7eb;
 
-    --text-primary: #24292f;
-    --text-secondary: #57606a;
-    --text-muted: #6e7781;
+    --text-primary: #0d0d0d;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
 
-    --high: #1a7f37;
-    --high-bg: #dafbe1;
-    --high-border: #34d399;
+    --high: #059669;
+    --high-bg: #ecfdf5;
+    --high-border: #10b981;
 
-    --medium: #9e6a03;
-    --medium-bg: #fff8c5;
-    --medium-border: #fbca04;
+    --medium: #d97706;
+    --medium-bg: #fefce8;
+    --medium-border: #fcd34d;
 
-    --low: #57606a;
-    --low-bg: #f6f8fa;
-    --low-border: #d0d7de;
+    --low: #6b7280;
+    --low-bg: #f5f5f5;
+    --low-border: #e5e7eb;
 
-    --short: #da3633;
-    --short-bg: #ffebe9;
+    --short: #dc2626;
+    --short-bg: #fee2e2;
 
-    --medium-h: #fb8500;
-    --medium-h-bg: #fff5eb;
+    --medium-h: #ea580c;
+    --medium-h-bg: #ffedd5;
 
-    --long: #0969da;
-    --long-bg: #ddf4ff;
+    --long: #2563eb;
+    --long-bg: #eff6ff;
 
-    --accent: #0969da;
-    --focus: rgba(9, 105, 218, 0.2);
+    --accent: #0891b2;
+    --focus: rgba(8, 145, 178, 0.1);
 
-    --staleness-bg: #fff5eb;
-    --staleness-text: #fb8500;
-    --staleness-border: #fbbf24;
+    --staleness-bg: #fef3c7;
+    --staleness-text: #d97706;
+    --staleness-border: #f59e0b;
 
-    --low-signal-bg: #ddf4ff;
-    --low-signal-text: #0969da;
+    --low-signal-bg: #dbeafe;
+    --low-signal-text: #2563eb;
   }
 }
 
@@ -121,11 +121,12 @@ body {
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  line-height: 1.5;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Utility classes for color tokens */
+/* Utility classes */
 .text-primary {
   color: var(--text-primary);
 }
@@ -148,6 +149,43 @@ body {
 
 .border-default {
   border-color: var(--border);
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(17, 18, 22, 0.5);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+/* Smooth transitions */
+.transition-smooth {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Focus ring */
+.focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-offset 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.focus-ring:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Shadows */
+.shadow-xs {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.shadow-sm {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 /* Reduced motion support */

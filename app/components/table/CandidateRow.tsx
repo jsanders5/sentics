@@ -24,29 +24,31 @@ export function CandidateRow({ candidate, rank, onSelect }: CandidateRowProps) {
   return (
     <tr
       onClick={onSelect}
-      className={`cursor-pointer border-b border-[--border] transition-colors ${
-        isLowConfidence ? "opacity-75 hover:opacity-90" : "hover:bg-[--bg-raised]"
-      } bg-[--bg-surface] border-l-4 ${borderColor}`}
+      className={`cursor-pointer border-b border-[--border] transition-smooth group border-l-4 ${borderColor} ${
+        isLowConfidence
+          ? "bg-[--bg-surface] opacity-75 hover:opacity-100 hover:bg-[--bg-raised]"
+          : "bg-[--bg-surface] hover:bg-[--bg-raised]"
+      }`}
     >
-      <td className="px-4 py-3 font-mono text-sm text-[--text-secondary] w-8">
+      <td className="px-5 py-4 font-mono text-xs font-semibold text-[--text-muted] w-8">
         {rank}
       </td>
-      <td className="px-4 py-3 font-mono font-semibold text-[--text-primary] w-16">
+      <td className="px-5 py-4 font-mono font-bold text-[--text-primary] text-sm w-16">
         {candidate.symbol}
       </td>
-      <td className="px-4 py-3 text-sm text-[--text-primary] truncate">
+      <td className="px-5 py-4 text-sm text-[--text-primary] truncate font-medium">
         {candidate.name}
       </td>
-      <td className="px-4 py-3 text-sm text-[--text-secondary] w-24">
+      <td className="px-5 py-4 text-xs text-[--text-secondary] w-24 font-medium">
         {candidate.category}
       </td>
-      <td className="px-4 py-3 w-28">
+      <td className="px-5 py-4 w-28">
         {candidate.time_horizon && <HorizonBadge horizon={candidate.time_horizon} size="sm" />}
       </td>
-      <td className="px-4 py-3 w-32">
+      <td className="px-5 py-4 w-32">
         {candidate.confidence_tier && <ConfidenceBadge tier={candidate.confidence_tier} size="sm" />}
       </td>
-      <td className="px-4 py-3 w-20">
+      <td className="px-5 py-4 w-24">
         <ScoreDisplay score={candidate.candidate_score} />
       </td>
     </tr>

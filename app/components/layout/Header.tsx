@@ -31,19 +31,31 @@ export function Header({ timestamp }: HeaderProps) {
 
   return (
     <>
-      <header className="border-b border-[--border] bg-[--bg-base] px-6 py-3">
-        <div className="flex items-baseline justify-between">
-          <div className="flex items-baseline gap-2">
-            <h1 className="font-sans text-xl font-semibold text-[--text-primary]">Sentics</h1>
-            <span className="text-sm text-[--text-secondary]">Trading Intelligence</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-[--text-muted]">
-              Data as of {time} UTC · {hoursAgo}h ago
+      <header className="sticky top-0 z-40 border-b border-[--border] bg-[--bg-base]/95 backdrop-blur-sm px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-baseline gap-1.5">
+              <h1 className="font-sans text-2xl font-bold bg-gradient-to-r from-[--accent] to-[--medium-h] bg-clip-text text-transparent">
+                Sentics
+              </h1>
+              <span className="text-xs font-semibold uppercase tracking-widest text-[--text-secondary]">
+                STI
+              </span>
+            </div>
+            <div className="w-px h-6 bg-[--border]" />
+            <span className="text-sm font-medium text-[--text-secondary]">
+              Trading Intelligence
             </span>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 text-xs text-[--text-muted]">
+              <div className="w-2 h-2 rounded-full bg-[--high] animate-pulse" />
+              <span>Last update: {time} UTC</span>
+              {hoursAgo > 0 && <span className="text-[--text-secondary]">• {hoursAgo}h ago</span>}
+            </div>
             <button
               onClick={() => setShowDisclaimer(true)}
-              className="text-sm font-medium text-[--accent] hover:opacity-80 transition-opacity"
+              className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary] hover:text-[--accent] transition-smooth px-3 py-1.5 rounded-md hover:bg-[--bg-surface]"
             >
               Disclaimer
             </button>
@@ -52,37 +64,44 @@ export function Header({ timestamp }: HeaderProps) {
       </header>
 
       {showDisclaimer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="max-w-2xl rounded-lg bg-[--bg-surface] border border-[--border] p-6 max-h-[80vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4 text-[--text-primary]">Disclaimer</h2>
-            <div className="space-y-4 text-sm text-[--text-secondary]">
-              <p>
-                <strong>Not Investment Advice:</strong> This platform provides analysis for educational
-                purposes only. It should not be construed as investment advice, a recommendation to buy or
-                sell any security, or an offer of services.
-              </p>
-              <p>
-                <strong>Market Risk:</strong> Cryptocurrency markets are highly volatile and speculative.
-                All investments carry risk, including loss of principal. Past performance does not guarantee
-                future results.
-              </p>
-              <p>
-                <strong>AI-Generated Content:</strong> Rationales are generated using AI and may contain
-                inaccuracies. Always conduct independent research before making any investment decisions.
-              </p>
-              <p>
-                <strong>Meme Coins:</strong> Analysis of meme coins includes elevated risk of manipulation and
-                loss. These are speculative and not recommended for risk-averse investors.
-              </p>
-              <p>
-                <strong>No Warranty:</strong> We make no warranties about the accuracy, timeliness, or
-                completeness of any information provided.
-              </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="max-w-2xl rounded-xl bg-[--bg-surface] border border-[--border] p-8 max-h-[80vh] overflow-y-auto shadow-lg">
+            <h2 className="text-2xl font-bold mb-6 text-[--text-primary]">Trading Disclaimer</h2>
+            <div className="space-y-5 text-sm text-[--text-secondary] leading-relaxed">
+              <div>
+                <p className="font-semibold text-[--text-primary] mb-2">Not Investment Advice</p>
+                <p>
+                  This platform provides analysis for educational purposes only. It should not be construed as investment advice, a recommendation to buy or sell any security, or an offer of services.
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold text-[--text-primary] mb-2">Market Risk</p>
+                <p>
+                  Cryptocurrency markets are highly volatile and speculative. All investments carry risk, including loss of principal. Past performance does not guarantee future results.
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold text-[--text-primary] mb-2">AI-Generated Content</p>
+                <p>
+                  Rationales are generated using AI and may contain inaccuracies. Always conduct independent research before making any investment decisions.
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold text-[--text-primary] mb-2">Meme Coins</p>
+                <p>
+                  Analysis of meme coins includes elevated risk of manipulation and loss. These are speculative and not recommended for risk-averse investors.
+                </p>
+              </div>
+              <div className="pt-2 border-t border-[--border]">
+                <p className="text-xs text-[--text-muted]">
+                  We make no warranties about the accuracy, timeliness, or completeness of any information provided.
+                </p>
+              </div>
             </div>
-            <div className="mt-6 flex gap-2">
+            <div className="mt-8 flex gap-3">
               <button
                 onClick={() => setShowDisclaimer(false)}
-                className="flex-1 rounded-lg bg-[--accent] px-4 py-2 font-semibold text-white hover:opacity-90 transition-opacity"
+                className="flex-1 rounded-lg bg-[--accent] px-4 py-3 font-semibold text-white hover:opacity-90 transition-smooth"
               >
                 I Understand
               </button>

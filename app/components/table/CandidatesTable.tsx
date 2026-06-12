@@ -67,9 +67,9 @@ export function CandidatesTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse">
-        <thead className="bg-[--bg-surface] border-b border-[--border]">
+        <thead className="sticky top-[73px] z-30 bg-[--bg-surface] border-b border-[--border]">
           <tr>
-            <th className="px-4 py-3 text-left font-sans text-xs font-semibold uppercase tracking-wider text-[--text-secondary] w-8">
+            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-8 bg-[--bg-surface]">
               <SortButton
                 onClick={() => onSortChange("rank")}
                 isActive={sortKey === "rank"}
@@ -78,7 +78,7 @@ export function CandidatesTable({
                 #
               </SortButton>
             </th>
-            <th className="px-4 py-3 text-left font-sans text-xs font-semibold uppercase tracking-wider text-[--text-secondary] w-16">
+            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-16 bg-[--bg-surface]">
               <SortButton
                 onClick={() => onSortChange("symbol")}
                 isActive={sortKey === "symbol"}
@@ -87,7 +87,7 @@ export function CandidatesTable({
                 Symbol
               </SortButton>
             </th>
-            <th className="px-4 py-3 text-left font-sans text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">
+            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] bg-[--bg-surface]">
               <SortButton
                 onClick={() => onSortChange("symbol")}
                 isActive={sortKey === "symbol"}
@@ -96,7 +96,7 @@ export function CandidatesTable({
                 Name
               </SortButton>
             </th>
-            <th className="px-4 py-3 text-left font-sans text-xs font-semibold uppercase tracking-wider text-[--text-secondary] w-24">
+            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-24 bg-[--bg-surface]">
               <SortButton
                 onClick={() => onSortChange("category")}
                 isActive={sortKey === "category"}
@@ -105,7 +105,7 @@ export function CandidatesTable({
                 Category
               </SortButton>
             </th>
-            <th className="px-4 py-3 text-left font-sans text-xs font-semibold uppercase tracking-wider text-[--text-secondary] w-28">
+            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-28 bg-[--bg-surface]">
               <SortButton
                 onClick={() => onSortChange("horizon")}
                 isActive={sortKey === "horizon"}
@@ -114,7 +114,7 @@ export function CandidatesTable({
                 Horizon
               </SortButton>
             </th>
-            <th className="px-4 py-3 text-left font-sans text-xs font-semibold uppercase tracking-wider text-[--text-secondary] w-32">
+            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-32 bg-[--bg-surface]">
               <SortButton
                 onClick={() => onSortChange("confidence")}
                 isActive={sortKey === "confidence"}
@@ -123,7 +123,7 @@ export function CandidatesTable({
                 Confidence
               </SortButton>
             </th>
-            <th className="px-4 py-3 text-left font-sans text-xs font-semibold uppercase tracking-wider text-[--text-secondary] w-20">
+            <th className="px-5 py-4 text-left font-sans text-xs font-bold uppercase tracking-widest text-[--text-muted] w-24 bg-[--bg-surface]">
               <SortButton
                 onClick={() => onSortChange("score")}
                 isActive={sortKey === "score"}
