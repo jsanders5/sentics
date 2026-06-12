@@ -95,7 +95,26 @@ export default async function handler(
       });
     }
 
-    const candidates: Candidate[] = await response.json();
+    let candidates: any[] = await response.json();
+
+    // Map database fields to frontend schema
+    candidates = candidates.map((c) => ({
+      symbol: c.symbol,
+      name: c.name,
+      category: c.category,
+      price: c.price,
+      rsi: c.rsi || 0,
+      volume_ratio: c.volume_ratio || 0,
+      technical_score: c.technical_score || 0,
+      category_momentum: c.category_momentum || 0,
+      candidate_score: c.score || 0, // Map 'score' to 'candidate_score'
+      time_horizon: c.time_horizon,
+      confidence_tier: c.confidence_tier,
+      rationale: c.rationale,
+      entry_type: c.entry_type,
+      entry_quality: c.entry_quality,
+      key_signals: c.key_signals,
+    }));
 
     return res.status(200).json({
       status: 'success',
