@@ -20,15 +20,56 @@ import time
 from .utils import (
     fetch_coingecko, fetch_market_chart, calculate_rsi,
     calculate_moving_average, calculate_momentum, log_info, log_error,
+    cache_get, cache_set,
 )
 
 # Pure meme coins capped at Medium confidence regardless of signal strength
 # (elevated manipulation risk — consistent with the product disclaimer).
 MEME_SYMBOLS = {"DOGE", "SHIB", "PEPE", "WIF", "BONK", "FLOKI"}
 
+# Fallback stablecoin denylist (by symbol) used if the CoinGecko category
+# lookup fails. Stablecoins are pegged and have no meaningful direction, so
+# they are excluded from the top-25 trading universe.
+STABLECOIN_SYMBOLS = {
+    "USDT", "USDC", "DAI", "USDS", "USDE", "USD1", "FDUSD", "TUSD", "PYUSD",
+    "USDD", "FRAX", "GUSD", "LUSD", "USDP", "BUSD", "EURT", "EURS", "CRVUSD",
+    "GHO", "USDX", "USDB", "USDL",
+}
+
 TOP_N = 25
+FETCH_N = 50               # over-fetch so we still get 25 after dropping stablecoins
 HISTORY_DAYS = 90          # enough for a valid 50-day MA
 MIN_PRICES = 15            # RSI(14) needs at least 15 points
+
+
+def load_stablecoin_ids() -> set:
+    """Authoritative stablecoin CoinGecko IDs (cached 12h). Falls back to the
+    symbol denylist if the category lookup fails."""
+    cached = cache_get("stablecoin_ids")
+    if cached and cached.get("ids"):
+        return set(cached["ids"])
+    try:
+        rows = fetch_coingecko("/coins/markets", {
+            "vs_currency": "usd",
+            "category": "stablecoins",
+            "per_page": 100,
+            "page": 1,
+            "sparkline": "false",
+        })
+        ids = [r.get("id") for r in rows if r.get("id")]
+        if ids:
+            cache_set("stablecoin_ids", {"ids": ids}, ttl_minutes=720)
+        return set(ids)
+    except Exception as e:
+        log_error("Failed to fetch stablecoin list; using symbol denylist only", e)
+        return set()
+
+
+def is_stablecoin(coin: Dict, stablecoin_ids: set) -> bool:
+    return (
+        coin.get("id") in stablecoin_ids
+        or coin.get("symbol", "").upper() in STABLECOIN_SYMBOLS
+    )
 
 
 def has_sufficient_data(prices: List[float], volumes: List[float]) -> bool:
@@ -216,18 +257,23 @@ def run(*_args, **_kwargs) -> Dict:
     start_time = time.time()
 
     try:
-        log_info(f"Agent 2 starting: analyzing top {TOP_N} coins by market cap")
+        log_info(f"Agent 2 starting: analyzing top {TOP_N} non-stablecoin coins by market cap")
 
         markets = fetch_coingecko("/coins/markets", {
             "vs_currency": "usd",
             "order": "market_cap_desc",
-            "per_page": TOP_N,
+            "per_page": FETCH_N,
             "page": 1,
             "sparkline": "false",
         })
 
+        # Drop stablecoins, then keep the top TOP_N remaining by market cap
+        stablecoin_ids = load_stablecoin_ids()
+        universe = [c for c in markets if not is_stablecoin(c, stablecoin_ids)][:TOP_N]
+        log_info(f"  {len(markets)} fetched, {len(universe)} after removing stablecoins")
+
         candidates = []
-        for coin in markets:
+        for coin in universe:
             coin_id = coin.get("id")
             symbol = coin.get("symbol", "").upper()
             try:
@@ -254,6 +300,7 @@ def run(*_args, **_kwargs) -> Dict:
                     "symbol": symbol,
                     "name": coin.get("name", ""),
                     "category": None,
+                    "market_cap": coin.get("market_cap") or 0,
                     "price": price,
                     "rsi": rsi,
                     "volume_ratio": volume_ratio,

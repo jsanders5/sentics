@@ -83,6 +83,10 @@ export function useFilterState(): UseFilterStateResult {
             aVal = confidenceOrder[a.confidence_tier as keyof typeof confidenceOrder] || 0;
             bVal = confidenceOrder[b.confidence_tier as keyof typeof confidenceOrder] || 0;
             break;
+          case "market_cap":
+            aVal = a.market_cap || 0;
+            bVal = b.market_cap || 0;
+            break;
           case "score":
           default:
             aVal = a.candidate_score;

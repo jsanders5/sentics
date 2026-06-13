@@ -188,7 +188,7 @@ def run(agent2_result: Dict) -> Dict:
 
                 candidates_with_rationales.append(candidate_with_rationale)
 
-                log_info(f"Processed {candidate['symbol']}: {analysis['confidence_tier']} confidence")
+                log_info(f"Processed {candidate['symbol']}: {candidate.get('confidence_tier', 'Low')} confidence")
 
             except Exception as e:
                 log_error(f"Error processing {candidate['symbol']}", e)

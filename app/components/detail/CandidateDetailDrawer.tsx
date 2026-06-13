@@ -194,16 +194,24 @@ export function CandidateDetailDrawer({
             </div>
           )}
 
-          {/* Price */}
-          <div className="space-y-2 border-t border-[--border] pt-6">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">
-              Price
-            </h3>
-            <div className="font-mono text-lg font-semibold text-[--text-primary]">
-              {candidate.price && typeof candidate.price === 'number' && candidate.price > 0
-                ? `$${candidate.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : 'N/A'}
+          {/* Price & Market Cap */}
+          <div className="space-y-3 border-t border-[--border] pt-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">Price</h3>
+              <span className="font-mono text-lg font-semibold text-[--text-primary]">
+                {candidate.price && typeof candidate.price === 'number' && candidate.price > 0
+                  ? `$${candidate.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : 'N/A'}
+              </span>
             </div>
+            {candidate.market_cap && candidate.market_cap > 0 && (
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">Market Cap</h3>
+                <span className="font-mono text-sm font-semibold text-[--text-secondary]">
+                  ${(candidate.market_cap / 1e9).toLocaleString('en-US', { maximumFractionDigits: 2 })}B
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Disclaimer */}

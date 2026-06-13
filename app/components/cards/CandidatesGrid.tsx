@@ -14,6 +14,7 @@ interface CandidatesGridProps {
 
 const sortOptions: { key: SortKey; label: string }[] = [
   { key: "score", label: "Score" },
+  { key: "market_cap", label: "Market cap" },
   { key: "symbol", label: "Symbol" },
   { key: "direction", label: "Direction" },
   { key: "confidence", label: "Confidence" },

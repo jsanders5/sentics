@@ -196,6 +196,7 @@ def insert_candidates(candidates: List[Dict]):
                 "symbol": candidate.get("symbol"),
                 "name": candidate.get("name"),
                 "category": candidate.get("category"),
+                "market_cap": candidate.get("market_cap"),
                 "price": candidate.get("price"),
                 "rsi": candidate.get("rsi"),
                 "volume_ratio": candidate.get("volume_ratio"),

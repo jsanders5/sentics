@@ -15,6 +15,7 @@ export interface Candidate {
   symbol: string;
   name: string;
   category?: string;
+  market_cap?: number;
   price: number;
   rsi: number;
   volume_ratio: number;
@@ -40,7 +41,7 @@ export interface PipelineRun {
   low_signal_environment?: boolean;
 }
 
-export type SortKey = "symbol" | "direction" | "horizon" | "confidence" | "score";
+export type SortKey = "symbol" | "direction" | "horizon" | "confidence" | "score" | "market_cap";
 export type SortOrder = "asc" | "desc" | null;
 
 export interface FilterState {

@@ -4,6 +4,7 @@ type Candidate = {
   symbol: string;
   name: string;
   category: string;
+  market_cap?: number;
   price: number;
   rsi: number;
   volume_ratio: number;
@@ -111,6 +112,7 @@ export default async function handler(
       symbol: c.symbol,
       name: c.name,
       category: c.category,
+      market_cap: typeof c.market_cap === 'number' ? c.market_cap : 0,
       price: typeof c.price === 'number' && c.price > 0 ? c.price : 0,
       rsi: typeof c.rsi === 'number' ? c.rsi : 0,
       volume_ratio: typeof c.volume_ratio === 'number' ? c.volume_ratio : 0,

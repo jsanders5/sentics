@@ -88,6 +88,7 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "symbol": c["symbol"],
                 "name": c["name"],
                 "category": c.get("category"),
+                "market_cap": c.get("market_cap", 0),
                 "price": c.get("price", 0),
                 "rsi": c.get("rsi", 0),
                 "volume_ratio": c.get("volume_ratio", 0),
