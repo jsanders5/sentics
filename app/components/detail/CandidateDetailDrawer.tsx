@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import { ConfidenceBadge } from "@/app/components/shared/ConfidenceBadge";
 import { HorizonBadge } from "@/app/components/shared/HorizonBadge";
 import { DirectionBadge } from "@/app/components/shared/DirectionBadge";
-import { ScoreDisplay } from "@/app/components/shared/ScoreDisplay";
+import { ScoreRing } from "@/app/components/shared/ScoreRing";
 
 interface CandidateDetailDrawerProps {
   candidate: Candidate | null;
@@ -59,7 +59,11 @@ export function CandidateDetailDrawer({
   return (
     <>
       {isOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 transition-opacity" onClick={onClose} />
+        <div
+          className="fixed inset-0 z-40 transition-opacity"
+          style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+          onClick={onClose}
+        />
       )}
 
       <div
@@ -101,14 +105,14 @@ export function CandidateDetailDrawer({
           )}
 
           {/* Horizon + Confidence + Score */}
-          <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
             <div className="flex flex-wrap gap-2">
               {candidate.time_horizon && <HorizonBadge horizon={candidate.time_horizon} />}
               {candidate.confidence_tier && <ConfidenceBadge tier={candidate.confidence_tier} />}
             </div>
-            <div>
-              <p className="text-xs text-[--text-secondary] mb-1">Overall Score</p>
-              <ScoreDisplay score={candidate.candidate_score} />
+            <div className="flex flex-col items-center">
+              <ScoreRing score={candidate.candidate_score} size={64} />
+              <span className="text-[10px] uppercase tracking-wider text-[--text-muted] mt-1">Score</span>
             </div>
           </div>
 

@@ -23,7 +23,12 @@ export function Header({ timestamp }: HeaderProps) {
     <>
       <header
         className="sticky top-0 z-40"
-        style={{ backgroundColor: 'var(--bg-base)', borderBottom: '1px solid var(--border)', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+        style={{
+          backgroundColor: 'rgba(10, 14, 39, 0.72)',
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
+          borderBottom: '1px solid var(--border)',
+        }}
       >
         {/* Top bar: branding + actions */}
         <div className="flex items-center justify-between px-4 md:px-8 py-3 md:py-4">

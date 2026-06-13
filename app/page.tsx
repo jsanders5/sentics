@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { Header } from "@/app/components/layout/Header";
 import { FilterBar } from "@/app/components/panels/FilterBar";
-import { CandidatesTable } from "@/app/components/table/CandidatesTable";
+import { CandidatesGrid } from "@/app/components/cards/CandidatesGrid";
 import { CandidateDetailDrawer } from "@/app/components/detail/CandidateDetailDrawer";
 import { useCandidates } from "@/app/hooks/useCandidates";
 import { useFilterState } from "@/app/hooks/useFilterState";
@@ -106,7 +106,7 @@ export default function DashboardPage() {
             )}
 
             <div className="flex-1 overflow-y-auto">
-              <CandidatesTable
+              <CandidatesGrid
                 candidates={displayedCandidates}
                 loading={loading}
                 sortKey={sortKey}
