@@ -17,6 +17,14 @@ alter table public.candidates add column if not exists entry_type       text;
 alter table public.candidates add column if not exists entry_quality    text;
 alter table public.candidates add column if not exists updated_at       timestamptz default now();
 
+-- Remove duplicate symbols left over from the pre-rewrite pipeline, keeping one
+-- row per symbol. (The next pipeline run upserts fresh values anyway, so which
+-- copy survives does not matter.) Must run BEFORE creating the unique index.
+delete from public.candidates a
+using public.candidates b
+where a.symbol = b.symbol
+  and a.ctid < b.ctid;
+
 -- `symbol` must be unique for the upsert (on_conflict=symbol) to work.
 create unique index if not exists candidates_symbol_key on public.candidates (symbol);
 
