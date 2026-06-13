@@ -7,13 +7,15 @@ import { formatAgo, isStale } from "@/app/lib/freshness";
 
 interface HeaderProps {
   timestamp?: string | null;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 const navLinks = [
   { href: "/", label: "Dashboard" },
 ];
 
-export function Header({ timestamp }: HeaderProps) {
+export function Header({ timestamp, onRefresh, refreshing }: HeaderProps) {
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const pathname = usePathname();
   const stale = isStale(timestamp);
@@ -62,6 +64,18 @@ export function Header({ timestamp }: HeaderProps) {
                 {freshness}
               </span>
             </div>
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={refreshing}
+                title="Re-run the analysis pipeline"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs uppercase tracking-wider hover:border-[--accent] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--accent)', border: '1px solid var(--border)' }}
+              >
+                <span className={refreshing ? "inline-block animate-spin" : "inline-block"} aria-hidden>↻</span>
+                <span className="hidden sm:inline">{refreshing ? "Running…" : "Refresh"}</span>
+              </button>
+            )}
             <button
               onClick={() => setShowDisclaimer(true)}
               className="px-3 py-1.5 rounded-lg font-semibold text-xs uppercase tracking-wider hover:opacity-80 transition-all"

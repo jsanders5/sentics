@@ -12,7 +12,7 @@ import { isStale, STALE_HOURS } from "@/app/lib/freshness";
 import { Candidate } from "@/app/types";
 
 export default function DashboardPage() {
-  const { candidates, loading, error, timestamp } = useCandidates();
+  const { candidates, loading, error, timestamp, refetch } = useCandidates();
   const {
     filters,
     sortKey,
@@ -27,13 +27,34 @@ export default function DashboardPage() {
   } = useFilterState();
 
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const displayedCandidates = filteredAndSorted(candidates);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setToast(null);
+    try {
+      const res = await fetch("/api/run-pipeline", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.status === "error") {
+        throw new Error(data.error || `Pipeline failed (${res.status})`);
+      }
+      await refetch();
+      setToast({ type: "success", text: data.message || "Pipeline complete — data refreshed." });
+    } catch (e) {
+      setToast({ type: "error", text: e instanceof Error ? e.message : "Refresh failed." });
+    } finally {
+      setRefreshing(false);
+      setTimeout(() => setToast(null), 6000);
+    }
+  };
 
   if (error && !loading) {
     return (
       <ErrorBoundary>
         <div className="flex h-screen flex-col" style={{ backgroundColor: 'var(--bg-base)' }}>
-          <Header timestamp={timestamp} />
+          <Header timestamp={timestamp} onRefresh={handleRefresh} refreshing={refreshing} />
           <div className="flex flex-1 items-center justify-center p-6">
             <div className="max-w-md text-center space-y-4">
               <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>Unable to Load Data</h2>
@@ -59,7 +80,7 @@ export default function DashboardPage() {
   return (
     <ErrorBoundary>
       <div className="flex h-screen flex-col" style={{ backgroundColor: 'var(--bg-base)' }}>
-        <Header timestamp={timestamp} />
+        <Header timestamp={timestamp} onRefresh={handleRefresh} refreshing={refreshing} />
 
         {/* Centered content column */}
         <div className="flex flex-1 flex-col overflow-hidden">
@@ -124,6 +145,21 @@ export default function DashboardPage() {
           isOpen={!!selectedCandidate}
           onClose={() => setSelectedCandidate(null)}
         />
+
+        {/* Refresh result toast */}
+        {toast && (
+          <div
+            role="status"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md px-4 py-3 rounded-lg text-sm shadow-lg border animate-card-in"
+            style={{
+              backgroundColor: 'var(--bg-raised)',
+              borderColor: toast.type === 'error' ? 'var(--bearish-border)' : 'var(--bullish-border)',
+              color: toast.type === 'error' ? 'var(--bearish)' : 'var(--text-primary)',
+            }}
+          >
+            {toast.text}
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   );
