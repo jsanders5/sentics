@@ -189,21 +189,30 @@ def insert_candidates(candidates: List[Dict]):
         url = f"{SUPABASE_URL}/rest/v1/candidates"
         headers = get_supabase_headers()
 
+        headers["Prefer"] = "resolution=merge-duplicates"
+
         for candidate in candidates:
             data = {
                 "symbol": candidate.get("symbol"),
                 "name": candidate.get("name"),
                 "category": candidate.get("category"),
+                "price": candidate.get("price"),
+                "rsi": candidate.get("rsi"),
+                "volume_ratio": candidate.get("volume_ratio"),
+                "technical_score": candidate.get("technical_score"),
+                "category_momentum": candidate.get("category_momentum"),
+                "direction": candidate.get("direction"),
                 "time_horizon": candidate.get("time_horizon"),
                 "confidence_tier": candidate.get("confidence_tier"),
                 "score": candidate.get("score"),
                 "rationale": candidate.get("rationale"),
+                "key_signals": candidate.get("key_signals"),
                 "entry_type": candidate.get("entry_type"),
                 "entry_quality": candidate.get("entry_quality"),
                 "updated_at": datetime.utcnow().isoformat()
             }
 
-            # Upsert: try to update, if not exists insert
+            # Upsert on symbol conflict
             response = requests.post(
                 url,
                 json=data,

@@ -95,10 +95,19 @@ export default async function handler(
       });
     }
 
-    let candidates: any[] = await response.json();
+    const rows: any[] = await response.json();
+
+    // Real data freshness = most recent row update time (not request time),
+    // so the dashboard's "Updated Xh ago" / staleness banner are honest.
+    const updatedTimes = rows
+      .map((c) => (c.updated_at ? new Date(c.updated_at).getTime() : NaN))
+      .filter((t) => !Number.isNaN(t));
+    const dataTimestamp = updatedTimes.length
+      ? new Date(Math.max(...updatedTimes)).toISOString()
+      : null;
 
     // Map database fields to frontend schema
-    candidates = candidates.map((c) => ({
+    let candidates: any[] = rows.map((c) => ({
       symbol: c.symbol,
       name: c.name,
       category: c.category,
@@ -120,7 +129,7 @@ export default async function handler(
     return res.status(200).json({
       status: 'success',
       candidates: candidates || [],
-      timestamp: new Date().toISOString(),
+      timestamp: dataTimestamp ?? undefined,
     });
   } catch (error) {
     console.error('Candidates query error:', error);

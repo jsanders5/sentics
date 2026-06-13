@@ -10,10 +10,10 @@ import uuid
 from datetime import datetime
 from typing import Dict
 from .utils import (
-    insert_categories, insert_candidates, insert_pipeline_run,
+    insert_candidates, insert_pipeline_run,
     cache_set, cache_invalidate, log_info, log_error
 )
-from . import agent1, agent2, agent3
+from . import agent2, agent3
 
 def run_pipeline(trigger_type: str = "scheduled") -> Dict:
     """
@@ -52,23 +52,11 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
     try:
         log_info(f"Pipeline starting: {run_id} ({trigger_type})")
 
-        # ============ AGENT 1: CATEGORY MOMENTUM ============
-        log_info("Running Agent 1...")
-        agent1_result = agent1.run(trigger_type=trigger_type)
-
-        if agent1_result["status"] != "success":
-            raise Exception(f"Agent 1 failed: {agent1_result.get('error')}")
-
-        # Persist categories to database
-        insert_categories(agent1_result.get("categories", []))
-        cache_set("categories:latest", {
-            "timestamp": start_time.isoformat(),
-            "categories": agent1_result.get("categories", [])
-        }, ttl_minutes=90)
-
-        # ============ AGENT 2: CANDIDATE DISCOVERY ============
+        # ============ AGENT 2: TOP-25 MARKET ANALYSIS ============
+        # Agent 1 (category momentum) was retired — the pipeline now analyzes
+        # the top 25 coins by market cap directly.
         log_info("Running Agent 2...")
-        agent2_result = agent2.run(agent1_result)
+        agent2_result = agent2.run()
 
         if agent2_result["status"] != "success":
             log_error(f"Agent 2 failed: {agent2_result.get('error')}")
@@ -105,6 +93,7 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "volume_ratio": c.get("volume_ratio", 0),
                 "technical_score": c.get("technical_score", 0),
                 "category_momentum": c.get("category_momentum", 0),
+                "direction": c.get("direction", "Neutral"),
                 "time_horizon": c.get("time_horizon", "Medium"),
                 "confidence_tier": c.get("confidence_tier", "Low"),
                 "score": c.get("candidate_score", 0),
@@ -146,10 +135,6 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "end": end_time.isoformat()
             },
             "agents": {
-                "agent1": {
-                    "status": agent1_result.get("status"),
-                    "duration_seconds": agent1_result.get("duration_seconds", 0)
-                },
                 "agent2": {
                     "status": agent2_result.get("status"),
                     "duration_seconds": agent2_result.get("duration_seconds", 0)
@@ -160,8 +145,6 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 }
             },
             "summary": {
-                "categories_scored": len(agent1_result.get("categories", [])),
-                "categories_passing": len(agent1_result.get("passing_categories", [])),
                 "candidates_discovered": agent2_result.get("total_candidates", 0),
                 "rationales_generated": agent3_result.get("total_processed", 0)
             }

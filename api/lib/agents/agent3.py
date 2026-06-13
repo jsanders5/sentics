@@ -27,39 +27,49 @@ def get_recent_news(coin_id: str) -> str:
     return "No recent major news detected."
 
 def build_prompt(candidate: Dict, agent2_data: Dict) -> str:
-    """Build Claude prompt for candidate analysis."""
-    return f"""Analyze this cryptocurrency trading candidate and provide structured output.
+    """Build Claude prompt for candidate analysis.
 
-CANDIDATE DATA:
+    The directional call, timeframe and confidence are already determined
+    deterministically by Agent 2. Claude's job is to write a rationale that is
+    CONSISTENT with that call — it does not decide the direction itself.
+    """
+    direction = candidate.get("direction", "Neutral")
+    time_horizon = candidate.get("time_horizon", "Medium")
+    confidence = candidate.get("confidence_tier", "Low")
+    existing_signals = candidate.get("key_signals", [])
+
+    return f"""You are a crypto market analyst. A technical model has already classified this
+asset. Write a rationale that explains and is fully consistent with that classification.
+
+ASSET:
 - Symbol: {candidate['symbol']}
 - Name: {candidate['name']}
-- Category: {candidate['category']}
 - Current Price: ${candidate['price']}
-- Technical Score: {candidate['technical_score']}/58
-- Category Momentum: {candidate['category_momentum']}/100
-- Candidate Score: {candidate['candidate_score']}/100
+
+MODEL CLASSIFICATION (do NOT contradict these):
+- Direction: {direction}  (price expected to move {'UP' if direction == 'Bullish' else 'DOWN' if direction == 'Bearish' else 'sideways / unclear'})
+- Timeframe: {time_horizon}
+- Confidence: {confidence}
 
 TECHNICAL INDICATORS:
-- RSI (14): {candidate['rsi']} (bullish range: 40-72)
-- Volume Ratio: {candidate['volume_ratio']}x (threshold: 1.3x)
-- Above 20d & 50d MAs: Yes (required filter)
+- RSI (14): {candidate['rsi']}
+- Volume Ratio: {candidate['volume_ratio']}x its 30-day average (1.3x = confirmation threshold)
+- Technical alignment score: {candidate['technical_score']}/58
+- Model-detected signals: {existing_signals}
 
 PROVIDE OUTPUT IN THIS EXACT JSON FORMAT:
 {{
-  "time_horizon": "Short|Medium|Long",
-  "confidence_tier": "High|Medium|Low",
   "entry_type": "Breakout|Retest|Dip-Buy",
   "entry_quality": "Strong|Moderate|Speculative",
-  "rationale": "2-3 sentences explaining the thesis. Cite the RSI, volume, and category momentum. Be specific about why this setup is compelling.",
+  "rationale": "2-3 sentences explaining the {direction} thesis over the {time_horizon} timeframe. Cite RSI, volume, and MA structure. Be specific.",
   "key_signals": ["signal1", "signal2", "signal3"]
 }}
 
 GUIDELINES:
-- Time horizon: Short if RSI > 65 (overbought momentum), Medium if technical + category strong, Long if structural trend
-- Confidence: High if 3+ signals strong, Medium if 2 signals strong, Low if mixed signals
-- Entry: Breakout if price above both MAs, Retest if pullback to MA, Dip-Buy if approaching MA from below
-- Meme coins ({candidate['category']}): cap at Medium confidence regardless of score
-- Rationale must be 2-3 sentences max, specific, and cite actual indicators
+- The rationale MUST support a {direction} view. If Bearish, explain downside risk; if Bullish, explain upside; if Neutral, explain why the signal is unclear.
+- Entry: Breakout if price above both MAs, Retest if pulling back to a MA, Dip-Buy if approaching a MA from below.
+- Rationale must be 2-3 sentences max, specific, and cite actual indicator values.
+- This is educational analysis, not financial advice.
 
 Return ONLY valid JSON, no markdown or extra text.
 """
@@ -76,9 +86,9 @@ def parse_claude_response(response_text: str) -> Dict:
             json_str = response_text.strip()
 
         parsed = json.loads(json_str)
+        # Note: direction / time_horizon / confidence_tier are owned by Agent 2
+        # and are intentionally NOT returned here so they are never overwritten.
         return {
-            "time_horizon": parsed.get("time_horizon", "Medium"),
-            "confidence_tier": parsed.get("confidence_tier", "Low"),
             "entry_type": parsed.get("entry_type", "Breakout"),
             "entry_quality": parsed.get("entry_quality", "Moderate"),
             "rationale": parsed.get("rationale", "Unable to generate rationale."),
@@ -87,8 +97,6 @@ def parse_claude_response(response_text: str) -> Dict:
     except Exception as e:
         log_error(f"Error parsing Claude response", e)
         return {
-            "time_horizon": "Medium",
-            "confidence_tier": "Low",
             "entry_type": "Breakout",
             "entry_quality": "Moderate",
             "rationale": "Analysis generation failed.",
@@ -168,7 +176,11 @@ def run(agent2_result: Dict) -> Dict:
                 # Parse response
                 analysis = parse_claude_response(response_text)
 
-                # Merge with candidate data
+                # Preserve Agent 2's deterministic key_signals if Claude returned none
+                if not analysis.get("key_signals"):
+                    analysis.pop("key_signals", None)
+
+                # Merge with candidate data (Agent 2 owns direction/horizon/confidence)
                 candidate_with_rationale = {
                     **candidate,
                     **analysis
