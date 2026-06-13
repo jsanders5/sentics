@@ -226,6 +226,29 @@ def insert_candidates(candidates: List[Dict]):
         sentry_sdk.capture_exception(e)
         raise
 
+def delete_candidates_except(symbols: List[str]):
+    """Delete candidate rows whose symbol is NOT in the given list.
+
+    The pipeline upserts the current universe but never removes symbols that
+    have dropped out (e.g. stablecoins now filtered, or coins that fell out of
+    the top 25). This prunes those stale rows. No-op on an empty list so we
+    never accidentally wipe the whole table.
+    """
+    if not symbols:
+        return
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/candidates"
+        headers = get_supabase_headers()
+        quoted = ",".join(f'"{s}"' for s in symbols)
+        params = {"symbol": f"not.in.({quoted})"}
+        response = requests.delete(url, headers=headers, params=params)
+        response.raise_for_status()
+        log_info(f"Pruned stale candidates not in current set of {len(symbols)}")
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        log_error("Failed to prune stale candidates", e)
+
+
 def insert_categories(categories: List[Dict]):
     """Insert or update categories in database via REST API."""
     try:

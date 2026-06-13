@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Dict
 from .utils import (
-    insert_candidates, insert_pipeline_run,
+    insert_candidates, delete_candidates_except, insert_pipeline_run,
     cache_set, cache_invalidate, log_info, log_error
 )
 from . import agent2, agent3
@@ -107,6 +107,9 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
 
         if candidates_data:
             insert_candidates(candidates_data)
+            # Prune rows that dropped out of the universe (e.g. stablecoins,
+            # coins no longer in the top 25) so the dashboard matches the run.
+            delete_candidates_except([c["symbol"] for c in candidates_data])
             cache_set("candidates:latest", {
                 "timestamp": start_time.isoformat(),
                 "candidates": agent3_result.get("candidates_with_rationales", []),
