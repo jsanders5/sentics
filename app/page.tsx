@@ -8,6 +8,7 @@ import { CandidatesTable } from "@/app/components/table/CandidatesTable";
 import { CandidateDetailDrawer } from "@/app/components/detail/CandidateDetailDrawer";
 import { useCandidates } from "@/app/hooks/useCandidates";
 import { useFilterState } from "@/app/hooks/useFilterState";
+import { isStale, STALE_HOURS } from "@/app/lib/freshness";
 import { Candidate } from "@/app/types";
 
 export default function DashboardPage() {
@@ -63,6 +64,23 @@ export default function DashboardPage() {
         {/* Centered content column */}
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="w-full max-w-7xl mx-auto flex flex-col flex-1 overflow-hidden">
+
+            {!loading && isStale(timestamp) && (
+              <div
+                className="px-4 md:px-6 py-3 text-sm flex items-center gap-2"
+                style={{
+                  backgroundColor: 'var(--stale-bg)',
+                  borderBottom: '1px solid var(--stale-border)',
+                  color: 'var(--stale)',
+                }}
+              >
+                <span aria-hidden>⚠</span>
+                <span>
+                  This data is more than {STALE_HOURS} hours old. The analysis pipeline runs once daily
+                  at 15:00 UTC — signals may no longer reflect current market conditions.
+                </span>
+              </div>
+            )}
 
             <FilterBar
               filters={filters}

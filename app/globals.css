@@ -13,6 +13,7 @@
   --text-secondary: #a1a8c1;
   --text-muted: #7a8299;
 
+  /* Score thresholds (not direction) — keep amber/green for the score bar only */
   --high: #10b981;
   --high-light: #34d399;
   --high-bg: rgba(16, 185, 129, 0.1);
@@ -28,17 +29,28 @@
   --low-bg: rgba(107, 114, 128, 0.05);
   --low-border: rgba(107, 114, 128, 0.2);
 
-  --short: #ef4444;
-  --short-light: #f87171;
-  --short-bg: rgba(239, 68, 68, 0.1);
+  /* Confidence — neutral cyan accent scale (never green/red, which are reserved for Direction) */
+  --conf-high: #22d3ee;
+  --conf-high-bg: rgba(34, 211, 238, 0.12);
+  --conf-high-border: rgba(34, 211, 238, 0.35);
 
-  --medium-h: #f97316;
-  --medium-h-light: #fb923c;
-  --medium-h-bg: rgba(249, 115, 22, 0.1);
+  --conf-medium: #a1a8c1;
+  --conf-medium-bg: rgba(161, 168, 193, 0.1);
+  --conf-medium-border: rgba(161, 168, 193, 0.25);
 
-  --long: #3b82f6;
-  --long-light: #60a5fa;
-  --long-bg: rgba(59, 130, 246, 0.1);
+  --conf-low: #7a8299;
+  --conf-low-bg: rgba(122, 130, 153, 0.08);
+  --conf-low-border: rgba(122, 130, 153, 0.2);
+
+  /* Horizon — neutral slate (ordinal time, not good/bad) */
+  --horizon-fg: #c7cdde;
+  --horizon-bg: rgba(58, 69, 102, 0.35);
+  --horizon-border: rgba(58, 69, 102, 0.6);
+
+  /* Freshness */
+  --stale: #f59e0b;
+  --stale-bg: rgba(245, 158, 11, 0.1);
+  --stale-border: rgba(245, 158, 11, 0.3);
 
   --bullish: #10b981;
   --bullish-bg: rgba(16, 185, 129, 0.1);

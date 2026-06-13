@@ -5,7 +5,10 @@ metadata:
   type: project
 ---
 
-## Component Tree
+## STATUS (verified 2026-06-12 against shipped code)
+Product pivoted to "top 25 by market cap" — the CATEGORY MODEL IS DEAD. `CategoryPanel.tsx`, `CategoryMomentumCard.tsx`, and `useCategories.ts` exist but are NOT imported/rendered anywhere (page.tsx never references them). Recommend deletion. The shipped layout is single-column (FilterBar + CandidatesTable + right CandidateDetailDrawer), NOT the three-panel layout drafted below. Data model added `direction` (Bullish/Bearish/Neutral) and `key_signals[]`; `rsi`, `volume_ratio`, `technical_score` ARE present (the "missing from API" note in project-context is partly outdated for those three). Still missing: on-chain, news, pre_trade_reference, is_meme_coin, entry_type/quality are typed but unused in UI.
+
+## Component Tree (original three-panel draft — partly superseded, see STATUS above)
 
 ```
 app/

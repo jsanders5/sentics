@@ -21,10 +21,26 @@ function getDirectionBorderColor(direction?: string): string {
 export function CandidateRow({ candidate, rank, onSelect }: CandidateRowProps) {
   const borderColor = getDirectionBorderColor(candidate.direction);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onSelect();
+    }
+  };
+
+  const ariaLabel = `${candidate.name} (${candidate.symbol})` +
+    (candidate.direction ? `, ${candidate.direction}` : "") +
+    (candidate.confidence_tier ? `, ${candidate.confidence_tier} confidence` : "") +
+    `, score ${candidate.candidate_score.toFixed(1)}. View details.`;
+
   return (
     <tr
       onClick={onSelect}
-      className={`cursor-pointer border-b border-[--border] transition-smooth group border-l-4 ${borderColor} bg-[--bg-surface] hover:bg-[--bg-raised]`}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="button"
+      aria-label={ariaLabel}
+      className={`cursor-pointer border-b border-[--border] transition-smooth group border-l-4 ${borderColor} bg-[--bg-surface] hover:bg-[--bg-raised] focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] focus-visible:ring-inset`}
     >
       <td className="px-5 py-4 font-mono text-xs font-semibold text-[--text-muted] w-8">
         {rank}

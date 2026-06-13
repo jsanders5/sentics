@@ -40,7 +40,7 @@ export interface PipelineRun {
   low_signal_environment?: boolean;
 }
 
-export type SortKey = "rank" | "symbol" | "direction" | "horizon" | "confidence" | "score";
+export type SortKey = "symbol" | "direction" | "horizon" | "confidence" | "score";
 export type SortOrder = "asc" | "desc" | null;
 
 export interface FilterState {

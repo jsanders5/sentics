@@ -7,8 +7,21 @@ metadata:
 
 ## Color Palette (dark-first, WCAG 2.1 AA)
 
-### Background layers
-- Page bg dark:   #0D1117   (GitHub dark — familiar, low strain)
+NOTE (verified 2026-06-12 against app/globals.css): the SHIPPED palette is deep-navy, NOT the GitHub-dark values that were originally drafted below. Trust globals.css. Shipped tokens:
+- Page bg:   #0a0e27 (--bg-base)  | Surface: #111629 (--bg-surface) | Raised: #1a1f3a | Hover: #232d47
+- Border:    #2a3456 (--border) / #3a4566 (--border-light)
+- Text:      #ffffff primary / #a1a8c1 secondary / #7a8299 muted (muted contrast borderline — see overhaul §7)
+- Direction: bullish #10b981 / bearish #ef4444 / neutral #6b7280 (+ -bg/-border rgba tokens)
+- Confidence: High #10b981 / Med #f59e0b / Low #6b7280
+- Horizon:   Short #ef4444 / Medium #f97316 / Long #3b82f6
+- Accent:    #06b6d4 cyan (--accent); also a separate blue #3b82f6 for Long — THREE blues compete
+- Light mode via @media prefers-color-scheme (accent #0891b2)
+
+### Overhaul recommendation (2026-06-12): reserve green/red for DIRECTION ONLY.
+Confidence → neutral filled-dot scale (●●●/●●○/●○○). Horizon → neutral outlined pill, no color (kills the red=Short vs red=Bearish collision, and green=High vs green=Bullish collision). Collapse the three blues to one accent (#3B82F6), retire cyan.
+
+### (Original draft GitHub-dark values — NOT shipped, kept for reference only)
+- Page bg dark:   #0D1117
 - Card bg dark:   #161B22
 - Card hover:     #1C2128
 - Border:         #30363D

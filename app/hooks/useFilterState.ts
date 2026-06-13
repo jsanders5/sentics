@@ -65,8 +65,6 @@ export function useFilterState(): UseFilterStateResult {
         let bVal: any;
 
         switch (sortKey) {
-          case "rank":
-            return sortOrder === "asc" ? a.candidate_score - b.candidate_score : b.candidate_score - a.candidate_score;
           case "symbol":
             aVal = a.symbol;
             bVal = b.symbol;

@@ -5,26 +5,27 @@ interface ConfidenceBadgeProps {
   size?: "sm" | "md";
 }
 
+// Confidence uses a neutral cyan accent scale — green/red are reserved for Direction.
 const confidenceConfig: Record<
   ConfidenceTier,
   { bg: string; text: string; border: string; icon: string }
 > = {
   High: {
-    bg: "bg-[--high]/10",
-    text: "text-[--high]",
-    border: "border-[--high]/30",
+    bg: "bg-[--conf-high-bg]",
+    text: "text-[--conf-high]",
+    border: "border-[--conf-high-border]",
     icon: "●",
   },
   Medium: {
-    bg: "bg-[--medium]/10",
-    text: "text-[--medium]",
-    border: "border-[--medium]/30",
+    bg: "bg-[--conf-medium-bg]",
+    text: "text-[--conf-medium]",
+    border: "border-[--conf-medium-border]",
     icon: "◐",
   },
   Low: {
-    bg: "bg-[--low]/10",
-    text: "text-[--low]",
-    border: "border-[--low]/30",
+    bg: "bg-[--conf-low-bg]",
+    text: "text-[--conf-low]",
+    border: "border-[--conf-low-border]",
     icon: "○",
   },
 };

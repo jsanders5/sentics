@@ -3,19 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { formatAgo, isStale } from "@/app/lib/freshness";
 
 interface HeaderProps {
   timestamp?: string | null;
-}
-
-function formatTime(isoString?: string | null): string {
-  if (!isoString) return "—";
-  const date = new Date(isoString);
-  return date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 }
 
 const navLinks = [
@@ -25,7 +16,8 @@ const navLinks = [
 export function Header({ timestamp }: HeaderProps) {
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const pathname = usePathname();
-  const time = formatTime(timestamp);
+  const stale = isStale(timestamp);
+  const freshness = formatAgo(timestamp);
 
   return (
     <>
@@ -46,10 +38,23 @@ export function Header({ timestamp }: HeaderProps) {
           </div>
 
           <div className="flex items-center gap-3 md:gap-4">
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--high)' }} />
-              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                {time} UTC
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
+              style={{
+                backgroundColor: stale ? 'var(--stale-bg)' : 'var(--bg-surface)',
+                borderColor: stale ? 'var(--stale-border)' : 'var(--border)',
+              }}
+              title={stale ? "Data is stale — pipeline runs once daily at 15:00 UTC" : "Pipeline runs once daily at 15:00 UTC"}
+            >
+              <div
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: stale ? 'var(--stale)' : 'var(--text-muted)' }}
+              />
+              <span
+                className="text-xs font-medium whitespace-nowrap"
+                style={{ color: stale ? 'var(--stale)' : 'var(--text-muted)' }}
+              >
+                {freshness}
               </span>
             </div>
             <button
