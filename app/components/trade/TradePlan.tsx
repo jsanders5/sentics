@@ -12,13 +12,14 @@ function rrColor(rr?: number | null): string {
 
 function RiskReward({ rr }: { rr?: number | null }) {
   if (!rr || rr <= 0) return null;
+  const display = rr > 5 ? "5+" : rr.toFixed(1);
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold"
       style={{ color: rrColor(rr), borderColor: "var(--border)", backgroundColor: "var(--bg-raised)" }}
       title="Reward-to-risk ratio (target distance ÷ stop distance)"
     >
-      R/R {rr.toFixed(1)}
+      R/R {display}
     </span>
   );
 }

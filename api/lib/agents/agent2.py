@@ -279,6 +279,9 @@ def compute_trade_plan(
         stop = min(ma50, swing_low)
         if stop >= entry:
             stop = entry * (1 - max(1.5 * vol, 0.04))
+        # Volatility floor: a stop must sit at least max(vol, 3%) below entry,
+        # otherwise a too-tight stop inflates R/R into meaningless territory.
+        stop = min(stop, entry * (1 - max(vol, 0.03)))
 
         target_condition = f"Take profit near {_fmt(target)} (prior resistance / +{(target/entry-1)*100:.0f}%)"
         stop_condition = f"Invalidated on a close below {_fmt(stop)} (below 50-day MA / recent low)"
@@ -301,6 +304,8 @@ def compute_trade_plan(
         stop = max(ma50, swing_high)
         if stop <= entry:
             stop = entry * (1 + max(1.5 * vol, 0.04))
+        # Volatility floor: stop must sit at least max(vol, 3%) above entry.
+        stop = max(stop, entry * (1 + max(vol, 0.03)))
 
         target_condition = f"Cover near {_fmt(target)} (prior support / {(target/entry-1)*100:.0f}%)"
         stop_condition = f"Invalidated on a close above {_fmt(stop)} (above 50-day MA / recent high)"
