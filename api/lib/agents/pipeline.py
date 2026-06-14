@@ -100,7 +100,8 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "score": c.get("candidate_score", 0),
                 "rationale": c.get("rationale", ""),
                 "entry_type": c.get("entry_type", "Breakout"),
-                "entry_quality": c.get("entry_quality", "Moderate")
+                "entry_quality": c.get("entry_quality", "Moderate"),
+                "trade_plan": c.get("trade_plan")
             }
             for c in agent3_result.get("candidates_with_rationales", [])
         ]

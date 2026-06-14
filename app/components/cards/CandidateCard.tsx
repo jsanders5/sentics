@@ -1,24 +1,18 @@
 "use client";
 
-import { Candidate, Direction } from "@/app/types";
+import { Candidate, Direction, BearishView } from "@/app/types";
 import { ScoreRing } from "@/app/components/shared/ScoreRing";
 import { DirectionBadge } from "@/app/components/shared/DirectionBadge";
 import { ConfidenceBadge } from "@/app/components/shared/ConfidenceBadge";
 import { HorizonBadge } from "@/app/components/shared/HorizonBadge";
+import { TradePlanCompact } from "@/app/components/trade/TradePlan";
+import { formatPrice } from "@/app/lib/format";
 
 interface CandidateCardProps {
   candidate: Candidate;
   index: number;
+  bearishView: BearishView;
   onSelect: () => void;
-}
-
-function formatPrice(price?: number): string {
-  if (!price || typeof price !== "number" || price <= 0) return "N/A";
-  if (price >= 1) {
-    return `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-  // Sub-dollar tokens: show more precision
-  return `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
 }
 
 const accentByDirection: Record<Direction, { bar: string; glow: string }> = {
@@ -27,7 +21,7 @@ const accentByDirection: Record<Direction, { bar: string; glow: string }> = {
   Neutral: { bar: "var(--neutral-dir)", glow: "var(--shadow-card)" },
 };
 
-export function CandidateCard({ candidate, index, onSelect }: CandidateCardProps) {
+export function CandidateCard({ candidate, index, bearishView, onSelect }: CandidateCardProps) {
   const direction: Direction = candidate.direction ?? "Neutral";
   const accent = accentByDirection[direction];
 
@@ -59,7 +53,11 @@ export function CandidateCard({ candidate, index, onSelect }: CandidateCardProps
           </div>
           <p className="truncate text-sm text-[--text-secondary] mt-0.5">{candidate.name}</p>
         </div>
-        <ScoreRing score={candidate.candidate_score} />
+        <ScoreRing
+          score={candidate.candidate_score}
+          label="Conviction"
+          title="Conviction — signal strength of the predicted direction (0–100). Higher means the technical signals agree more strongly on the move, up or down."
+        />
       </div>
 
       {/* Price */}
@@ -73,8 +71,13 @@ export function CandidateCard({ candidate, index, onSelect }: CandidateCardProps
         {candidate.time_horizon && <HorizonBadge horizon={candidate.time_horizon} size="sm" />}
       </div>
 
+      {/* Trade plan summary */}
+      <div className="mt-3 border-t border-[--border] pt-3">
+        <TradePlanCompact plan={candidate.trade_plan} view={bearishView} />
+      </div>
+
       {/* Metrics footer */}
-      <div className="mt-4 flex items-center gap-4 border-t border-[--border] pt-3 text-xs">
+      <div className="mt-3 flex items-center gap-4 border-t border-[--border] pt-3 text-xs">
         <div className="flex flex-col">
           <span className="text-[--text-muted]">RSI</span>
           <span className="font-mono font-semibold text-[--text-primary]">{candidate.rsi.toFixed(0)}</span>

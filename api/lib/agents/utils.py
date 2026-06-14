@@ -210,6 +210,7 @@ def insert_candidates(candidates: List[Dict]):
                 "key_signals": candidate.get("key_signals"),
                 "entry_type": candidate.get("entry_type"),
                 "entry_quality": candidate.get("entry_quality"),
+                "trade_plan": candidate.get("trade_plan"),
                 "updated_at": datetime.utcnow().isoformat()
             }
 

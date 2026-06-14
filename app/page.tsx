@@ -9,7 +9,7 @@ import { CandidateDetailDrawer } from "@/app/components/detail/CandidateDetailDr
 import { useCandidates } from "@/app/hooks/useCandidates";
 import { useFilterState } from "@/app/hooks/useFilterState";
 import { isStale, STALE_HOURS } from "@/app/lib/freshness";
-import { Candidate } from "@/app/types";
+import { Candidate, BearishView } from "@/app/types";
 
 export default function DashboardPage() {
   const { candidates, loading, error, timestamp, refetch } = useCandidates();
@@ -27,6 +27,7 @@ export default function DashboardPage() {
   } = useFilterState();
 
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [bearishView, setBearishView] = useState<BearishView>("spot");
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const displayedCandidates = filteredAndSorted(candidates);
@@ -132,6 +133,8 @@ export default function DashboardPage() {
                 loading={loading}
                 sortKey={sortKey}
                 sortOrder={sortOrder}
+                bearishView={bearishView}
+                onBearishViewChange={setBearishView}
                 onSortChange={setSortKey}
                 onSelectCandidate={setSelectedCandidate}
               />
@@ -143,6 +146,7 @@ export default function DashboardPage() {
         <CandidateDetailDrawer
           candidate={selectedCandidate}
           isOpen={!!selectedCandidate}
+          bearishView={bearishView}
           onClose={() => setSelectedCandidate(null)}
         />
 

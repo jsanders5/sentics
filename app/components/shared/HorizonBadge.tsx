@@ -14,7 +14,7 @@ const horizonRange: Record<TimeHorizon, string> = {
 };
 
 export function HorizonBadge({ horizon = "Medium", size = "md" }: HorizonBadgeProps) {
-  const sizeClass = size === "sm" ? "px-4 py-2 text-xs" : "px-5 py-2.5 text-sm";
+  const sizeClass = size === "sm" ? "px-2 py-1 text-xs" : "px-2.5 py-1.5 text-sm";
 
   return (
     <span

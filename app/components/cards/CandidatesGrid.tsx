@@ -1,6 +1,6 @@
 "use client";
 
-import { Candidate, SortKey, SortOrder } from "@/app/types";
+import { Candidate, SortKey, SortOrder, BearishView } from "@/app/types";
 import { CandidateCard } from "./CandidateCard";
 
 interface CandidatesGridProps {
@@ -8,12 +8,14 @@ interface CandidatesGridProps {
   loading: boolean;
   sortKey: SortKey;
   sortOrder: SortOrder;
+  bearishView: BearishView;
+  onBearishViewChange: (view: BearishView) => void;
   onSortChange: (key: SortKey) => void;
   onSelectCandidate: (candidate: Candidate) => void;
 }
 
 const sortOptions: { key: SortKey; label: string }[] = [
-  { key: "score", label: "Score" },
+  { key: "score", label: "Conviction" },
   { key: "market_cap", label: "Market cap" },
   { key: "symbol", label: "Symbol" },
   { key: "direction", label: "Direction" },
@@ -34,6 +36,8 @@ export function CandidatesGrid({
   loading,
   sortKey,
   sortOrder,
+  bearishView,
+  onBearishViewChange,
   onSortChange,
   onSelectCandidate,
 }: CandidatesGridProps) {
@@ -60,9 +64,31 @@ export function CandidatesGrid({
     <div>
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 pt-4 md:pt-6">
-        <p className="text-sm text-[--text-secondary]">
-          <span className="font-semibold text-[--text-primary]">{candidates.length}</span> assets
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-[--text-secondary]">
+            <span className="font-semibold text-[--text-primary]">{candidates.length}</span> assets
+          </p>
+          {/* Bearish view toggle */}
+          <div
+            className="flex items-center rounded-lg border p-0.5"
+            style={{ backgroundColor: "var(--bg-raised)", borderColor: "var(--border)" }}
+            title="How bearish setups are framed"
+          >
+            {(["spot", "short"] as BearishView[]).map((v) => (
+              <button
+                key={v}
+                onClick={() => onBearishViewChange(v)}
+                className="px-2.5 py-1 rounded-md text-xs font-medium capitalize transition-colors"
+                style={{
+                  backgroundColor: bearishView === v ? "var(--accent)" : "transparent",
+                  color: bearishView === v ? "#fff" : "var(--text-secondary)",
+                }}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <label className="text-xs text-[--text-muted] hidden sm:block">Sort by</label>
           <select
@@ -93,6 +119,7 @@ export function CandidatesGrid({
             key={`${candidate.symbol}-${i}`}
             candidate={candidate}
             index={i}
+            bearishView={bearishView}
             onSelect={() => onSelectCandidate(candidate)}
           />
         ))}

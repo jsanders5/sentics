@@ -216,6 +216,122 @@ def compute_candidate_score(directional_score: float, volume_ratio: float) -> fl
     return round(max(0, min(100, base)), 2)
 
 
+def _fmt(p: float) -> str:
+    """Format a price for human-readable trade-plan conditions."""
+    if p >= 1:
+        return f"${p:,.2f}"
+    return f"${p:,.6f}"
+
+
+def _volatility(prices: List[float]) -> float:
+    """Std-dev of daily returns over the last ~30 days, as a fraction (fallback 0.03)."""
+    rets = [
+        (prices[i] - prices[i - 1]) / prices[i - 1]
+        for i in range(1, len(prices))
+        if prices[i - 1] > 0
+    ]
+    window = rets[-30:] if len(rets) >= 2 else rets
+    if len(window) < 2:
+        return 0.03
+    try:
+        return max(0.005, statistics.pstdev(window))
+    except statistics.StatisticsError:
+        return 0.03
+
+
+def compute_trade_plan(
+    direction: str, price: float, prices: List[float], rsi: float
+) -> Dict:
+    """Derive a concrete, data-backed trade plan: entry/target/stop + conditions + R/R.
+
+    Long plan for Bullish, short plan for Bearish, no actionable plan for Neutral.
+    Levels come from the 20/50-day MAs, the recent 30-day swing range, and
+    close-to-close volatility. All levels are paired with a confirmation
+    condition (a price level plus an indicator/volume trigger).
+    """
+    ma20 = calculate_moving_average(prices, 20)
+    ma50 = calculate_moving_average(prices, 50)
+    recent = prices[-30:] if len(prices) >= 30 else prices
+    swing_high = max(recent)
+    swing_low = min(recent)
+    vol = _volatility(prices)
+
+    levels = {
+        "ma20": round(ma20, 6),
+        "ma50": round(ma50, 6),
+        "swing_high": round(swing_high, 6),
+        "swing_low": round(swing_low, 6),
+    }
+
+    if direction == "Bullish":
+        if price >= swing_high * 0.98:
+            entry = swing_high
+            entry_condition = f"Close above the recent high {_fmt(swing_high)} on volume > 1.3× average"
+        elif price >= ma20:
+            entry = ma20
+            entry_condition = f"Pullback holds the 20-day MA ({_fmt(ma20)}) with RSI staying above 50"
+        else:
+            entry = ma20
+            entry_condition = f"Reclaim the 20-day MA ({_fmt(ma20)}) on volume > 1.3× average"
+
+        vol_target = entry * (1 + max(2 * vol, 0.05))
+        target = max(swing_high, vol_target) if swing_high > entry else vol_target
+        stop = min(ma50, swing_low)
+        if stop >= entry:
+            stop = entry * (1 - max(1.5 * vol, 0.04))
+
+        target_condition = f"Take profit near {_fmt(target)} (prior resistance / +{(target/entry-1)*100:.0f}%)"
+        stop_condition = f"Invalidated on a close below {_fmt(stop)} (below 50-day MA / recent low)"
+        risk, reward = entry - stop, target - entry
+        bias = "long"
+
+    elif direction == "Bearish":
+        if price <= swing_low * 1.02:
+            entry = swing_low
+            entry_condition = f"Breakdown below the recent low {_fmt(swing_low)} on rising volume"
+        elif price <= ma20:
+            entry = ma20
+            entry_condition = f"Failed bounce into the 20-day MA ({_fmt(ma20)}) with RSI below 50"
+        else:
+            entry = ma20
+            entry_condition = f"Loss of the 20-day MA ({_fmt(ma20)}) on volume > 1.3× average"
+
+        vol_target = entry * (1 - max(2 * vol, 0.05))
+        target = min(swing_low, vol_target) if swing_low < entry else vol_target
+        stop = max(ma50, swing_high)
+        if stop <= entry:
+            stop = entry * (1 + max(1.5 * vol, 0.04))
+
+        target_condition = f"Cover near {_fmt(target)} (prior support / {(target/entry-1)*100:.0f}%)"
+        stop_condition = f"Invalidated on a close above {_fmt(stop)} (above 50-day MA / recent high)"
+        risk, reward = stop - entry, entry - target
+        bias = "short"
+
+    else:  # Neutral
+        return {
+            "bias": "none",
+            "summary": (
+                f"No clear setup — wait for a break of the 20-day MA ({_fmt(ma20)}) "
+                f"or the {_fmt(swing_low)}–{_fmt(swing_high)} range"
+            ),
+            "levels": levels,
+        }
+
+    risk_reward = round(reward / risk, 2) if risk > 0 else None
+
+    return {
+        "bias": bias,
+        "entry": round(entry, 6),
+        "entry_condition": entry_condition,
+        "target": round(target, 6),
+        "target_condition": target_condition,
+        "stop": round(stop, 6),
+        "stop_condition": stop_condition,
+        "risk_reward": risk_reward,
+        "levels": levels,
+    }
+
+
 def build_key_signals(direction: str, signals: Dict, rsi: float, volume_ratio: float) -> List[str]:
     """Deterministic human-readable signals (Agent 3 may refine/replace these)."""
     out = []
@@ -295,6 +411,7 @@ def run(*_args, **_kwargs) -> Dict:
                 candidate_score = compute_candidate_score(directional_score, volume_ratio)
                 technical_score = calculate_technical_score(price, prices, rsi, volume_ratio)
                 key_signals = build_key_signals(direction, signals, rsi, volume_ratio)
+                trade_plan = compute_trade_plan(direction, price, prices, rsi)
 
                 candidates.append({
                     "symbol": symbol,
@@ -312,6 +429,7 @@ def run(*_args, **_kwargs) -> Dict:
                     "time_horizon": time_horizon,
                     "confidence_tier": confidence_tier,
                     "key_signals": key_signals,
+                    "trade_plan": trade_plan,
                 })
 
                 log_info(f"  {symbol}: {direction} / {time_horizon} / {confidence_tier} (score {candidate_score})")

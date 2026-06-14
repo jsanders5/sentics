@@ -1,21 +1,24 @@
 "use client";
 
-import { Candidate } from "@/app/types";
+import { Candidate, BearishView } from "@/app/types";
 import { useEffect, useRef } from "react";
 import { ConfidenceBadge } from "@/app/components/shared/ConfidenceBadge";
 import { HorizonBadge } from "@/app/components/shared/HorizonBadge";
 import { DirectionBadge } from "@/app/components/shared/DirectionBadge";
 import { ScoreRing } from "@/app/components/shared/ScoreRing";
+import { TradePlanDetail } from "@/app/components/trade/TradePlan";
 
 interface CandidateDetailDrawerProps {
   candidate: Candidate | null;
   isOpen: boolean;
+  bearishView: BearishView;
   onClose: () => void;
 }
 
 export function CandidateDetailDrawer({
   candidate,
   isOpen,
+  bearishView,
   onClose,
 }: CandidateDetailDrawerProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -101,20 +104,31 @@ export function CandidateDetailDrawer({
                 Price Direction
               </p>
               <DirectionBadge direction={candidate.direction} size="lg" />
+              <p className="text-sm text-[--text-secondary] mt-3">
+                <span className="font-semibold text-[--text-primary]">
+                  {Math.round(candidate.candidate_score)}/100
+                </span>{" "}
+                conviction in this {candidate.direction.toLowerCase()} call
+              </p>
             </div>
           )}
 
-          {/* Horizon + Confidence + Score */}
+          {/* Horizon + Confidence + Conviction */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex flex-wrap gap-2">
               {candidate.time_horizon && <HorizonBadge horizon={candidate.time_horizon} />}
               {candidate.confidence_tier && <ConfidenceBadge tier={candidate.confidence_tier} />}
             </div>
-            <div className="flex flex-col items-center">
-              <ScoreRing score={candidate.candidate_score} size={64} />
-              <span className="text-[10px] uppercase tracking-wider text-[--text-muted] mt-1">Score</span>
-            </div>
+            <ScoreRing score={candidate.candidate_score} size={64} label="Conviction" />
           </div>
+          <p className="text-xs text-[--text-muted] -mt-2">
+            <span className="font-semibold text-[--text-secondary]">Conviction</span> — signal strength of the
+            predicted direction. <span className="font-semibold text-[--text-secondary]">Confidence</span> — how
+            many indicators agree.
+          </p>
+
+          {/* Trade Plan */}
+          <TradePlanDetail plan={candidate.trade_plan} view={bearishView} />
 
           {/* Rationale */}
           {candidate.rationale && (

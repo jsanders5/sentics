@@ -11,6 +11,29 @@ export type Direction = "Bullish" | "Bearish" | "Neutral";
 export type EntryType = "Breakout" | "Retest" | "Dip-Buy";
 export type EntryQuality = "Strong" | "Moderate" | "Speculative";
 
+export type TradeBias = "long" | "short" | "none";
+export type BearishView = "spot" | "short";
+
+export interface TradePlanLevels {
+  ma20: number;
+  ma50: number;
+  swing_high: number;
+  swing_low: number;
+}
+
+export interface TradePlan {
+  bias: TradeBias;
+  entry?: number;
+  entry_condition?: string;
+  target?: number;
+  target_condition?: string;
+  stop?: number;
+  stop_condition?: string;
+  risk_reward?: number | null;
+  summary?: string;
+  levels: TradePlanLevels;
+}
+
 export interface Candidate {
   symbol: string;
   name: string;
@@ -29,6 +52,7 @@ export interface Candidate {
   entry_quality?: EntryQuality;
   rationale?: string;
   key_signals?: string[];
+  trade_plan?: TradePlan;
 }
 
 export interface PipelineRun {

@@ -38,6 +38,17 @@ def build_prompt(candidate: Dict, agent2_data: Dict) -> str:
     confidence = candidate.get("confidence_tier", "Low")
     existing_signals = candidate.get("key_signals", [])
 
+    plan = candidate.get("trade_plan") or {}
+    if plan.get("bias") in ("long", "short"):
+        plan_str = (
+            f"- Entry: {plan.get('entry')} — {plan.get('entry_condition')}\n"
+            f"- Target: {plan.get('target')} — {plan.get('target_condition')}\n"
+            f"- Stop: {plan.get('stop')} — {plan.get('stop_condition')}\n"
+            f"- Risk/reward: {plan.get('risk_reward')}"
+        )
+    else:
+        plan_str = "- No actionable setup (neutral)."
+
     return f"""You are a crypto market analyst. A technical model has already classified this
 asset. Write a rationale that explains and is fully consistent with that classification.
 
@@ -56,6 +67,9 @@ TECHNICAL INDICATORS:
 - Volume Ratio: {candidate['volume_ratio']}x its 30-day average (1.3x = confirmation threshold)
 - Technical alignment score: {candidate['technical_score']}/58
 - Model-detected signals: {existing_signals}
+
+TRADE PLAN (reference these levels in your rationale; do NOT invent different ones):
+{plan_str}
 
 PROVIDE OUTPUT IN THIS EXACT JSON FORMAT:
 {{

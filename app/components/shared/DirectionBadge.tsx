@@ -30,10 +30,10 @@ export function DirectionBadge({ direction, size = "md" }: DirectionBadgeProps) 
   const config = directionConfig[direction];
   const sizeClass =
     size === "lg"
-      ? "px-6 py-3 text-base"
+      ? "px-3 py-1.5 text-base"
       : size === "sm"
-      ? "px-4 py-2 text-xs"
-      : "px-5 py-2.5 text-sm";
+      ? "px-2 py-1 text-xs"
+      : "px-2.5 py-1.5 text-sm";
 
   return (
     <span

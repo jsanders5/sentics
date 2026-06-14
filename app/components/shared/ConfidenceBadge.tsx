@@ -32,7 +32,7 @@ const confidenceConfig: Record<
 
 export function ConfidenceBadge({ tier, size = "md" }: ConfidenceBadgeProps) {
   const config = confidenceConfig[tier];
-  const sizeClass = size === "sm" ? "px-4 py-2 text-xs" : "px-5 py-2.5 text-sm";
+  const sizeClass = size === "sm" ? "px-2 py-1 text-xs" : "px-2.5 py-1.5 text-sm";
 
   return (
     <span

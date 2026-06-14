@@ -126,6 +126,7 @@ export default async function handler(
       entry_type: c.entry_type,
       entry_quality: c.entry_quality,
       key_signals: c.key_signals,
+      trade_plan: c.trade_plan,
     }));
 
     return res.status(200).json({
