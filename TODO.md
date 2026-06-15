@@ -4,24 +4,28 @@ Tracked follow-ups for the sentics platform.
 
 ## Trade plans (priority)
 
-- [ ] **Compliance review of trade plans.** The dashboard now outputs specific
-  entry / target / stop levels (`compute_trade_plan` in `api/lib/agents/agent2.py`),
-  which moves from general "analysis" toward investment-advice territory. Before
-  this goes public, run a review with the `fintech-compliance-specialist` agent:
-  validate disclaimer language, the "educational / not financial advice" framing
-  on plans, and the spot-vs-short presentation. Keep stop/risk shown alongside
-  every target.
+- [x] **Compliance review of trade plans — code/copy fixes DONE (commit 3129d31).**
+  fintech-compliance-specialist (opus) pass applied: card micro-disclaimer,
+  persistent footer, short-selling unlimited-loss disclosure, stronger plan
+  footer, modal sections (Trade-Plan Levels / Short Selling / Regulatory Status),
+  per-coin caveat for non-BTC/ETH, directive→descriptive label reframes.
+  - [ ] **[COUNSEL] BLOCKERS before public launch** (not code — require a
+    securities attorney): written sign-off naming the trade-plan entry/target/stop
+    levels **and** the short framing specifically; documented no-monetization gate
+    (the free status is the load-bearing IAA defense — a paid tier requires fresh
+    review); Terms of Service + Privacy Policy live (limitation of liability, no
+    warranty, arbitration; GDPR/cookie consent).
+  - [ ] **Nice-to-have:** first-visit acknowledgment gate; maintain the 24-hour
+    coin-exclusion capability for rapid enforcement response; reconsider the
+    "AI Trading Intelligence" tagline.
 
-- [ ] **Higher-precision price levels (OHLC) + ATR-based stops.** Trade-plan
-  levels currently use daily *closes* from CoinGecko's `market_chart` endpoint.
-  This is fine for MA/swing logic but means stops/targets ignore true intraday
-  highs and lows. To tighten them, pull `/coins/{id}/ohlc` and compute swing
-  levels / ATR-based stops from real candle ranges (one extra API call per coin —
-  mind rate limits). This would also replace the current stop-distance heuristic:
-  we presently enforce a volatility floor of `max(daily_close_vol, 3%)` in
-  `compute_trade_plan` (`agent2.py`) to stop tight stops from inflating R/R — a
-  true ATR from OHLC would place stops on real volatility structure instead of a
-  flat floor.
+- [~] **Higher-precision price levels (OHLC) + ATR-based stops — DEFERRED.**
+  Decision: defer; do the backtest first and revisit only if stop placement is the
+  weak link. **Finding (verified live):** CoinGecko's free/demo tier has NO daily
+  OHLC — `/ohlc?days=30` returns 4-hour candles, `days≥90` returns 4-DAY candles,
+  and the demo key lacks `/ohlc/range?interval=daily`. So true daily ATR needs one
+  of: aggregate 4h→daily over ~30d (hybrid), a Binance-klines source, or CoinGecko
+  Pro. The current close-to-close volatility floor stays until then.
 
 ## Scoring-model redesign — DONE (commit aa5e165)
 
