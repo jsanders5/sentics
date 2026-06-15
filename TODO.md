@@ -12,11 +12,16 @@ Tracked follow-ups for the sentics platform.
   on plans, and the spot-vs-short presentation. Keep stop/risk shown alongside
   every target.
 
-- [ ] **Higher-precision price levels (OHLC).** Trade-plan levels currently use
-  daily *closes* from CoinGecko's `market_chart` endpoint. This is fine for
-  MA/swing logic but means stops/targets ignore true intraday highs and lows. To
-  tighten them, pull `/coins/{id}/ohlc` and compute swing levels / ATR-based
-  stops from real candle ranges (one extra API call per coin — mind rate limits).
+- [ ] **Higher-precision price levels (OHLC) + ATR-based stops.** Trade-plan
+  levels currently use daily *closes* from CoinGecko's `market_chart` endpoint.
+  This is fine for MA/swing logic but means stops/targets ignore true intraday
+  highs and lows. To tighten them, pull `/coins/{id}/ohlc` and compute swing
+  levels / ATR-based stops from real candle ranges (one extra API call per coin —
+  mind rate limits). This would also replace the current stop-distance heuristic:
+  we presently enforce a volatility floor of `max(daily_close_vol, 3%)` in
+  `compute_trade_plan` (`agent2.py`) to stop tight stops from inflating R/R — a
+  true ATR from OHLC would place stops on real volatility structure instead of a
+  flat floor.
 
 ## Other known open items
 
