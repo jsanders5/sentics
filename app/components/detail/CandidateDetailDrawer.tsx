@@ -172,7 +172,7 @@ export function CandidateDetailDrawer({
               </div>
 
               <div className="flex items-center justify-between pt-2">
-                <span className="text-[--text-secondary]">Technical Score</span>
+                <span className="text-[--text-secondary]" title="Direction-agnostic setup strength: how clean and well-confirmed the move is, bull or bear.">Technical Strength</span>
                 <span className="font-mono font-semibold text-[--text-primary]">
                   {candidate.technical_score.toFixed(1)}/58
                 </span>

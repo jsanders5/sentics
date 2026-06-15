@@ -385,28 +385,40 @@ def cache_invalidate(*keys):
 
 # Technical indicators
 def calculate_rsi(prices: List[float], period: int = 14) -> float:
-    """Calculate RSI (Relative Strength Index)."""
-    if len(prices) < period:
-        return 50
+    """Wilder's RSI over the full price series (seed SMA + recursive smoothing).
 
-    deltas = [prices[i] - prices[i-1] for i in range(1, len(prices))]
-    gains = [d if d > 0 else 0 for d in deltas]
-    losses = [-d if d < 0 else 0 for d in deltas]
+    This matches the canonical RSI used by charting tools, unlike a simple
+    average of the last `period` deltas (Cutler's), and incorporates the whole
+    series instead of discarding everything before the last `period` points.
+    """
+    if len(prices) < period + 1:
+        return 50.0
 
-    avg_gain = sum(gains[-period:]) / period
-    avg_loss = sum(losses[-period:]) / period
+    deltas = [prices[i] - prices[i - 1] for i in range(1, len(prices))]
+    gains = [max(d, 0.0) for d in deltas]
+    losses = [max(-d, 0.0) for d in deltas]
+
+    # Seed with a simple average over the first `period` deltas, then smooth.
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+    for i in range(period, len(deltas)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
 
     if avg_loss == 0:
-        return 100 if avg_gain > 0 else 50
+        return 100.0 if avg_gain > 0 else 50.0
 
     rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return max(0, min(100, rsi))
+    return max(0.0, min(100.0, 100 - 100 / (1 + rs)))
 
-def calculate_moving_average(prices: List[float], period: int) -> float:
-    """Calculate simple moving average."""
-    if len(prices) < period:
-        return prices[-1] if prices else 0
+def calculate_moving_average(prices: List[float], period: int) -> Optional[float]:
+    """Simple moving average, or None when there isn't a full `period` of data.
+
+    Returns None (not the last price) on insufficient data so callers must gate
+    period-dependent logic rather than act on a silently corrupted value.
+    """
+    if not prices or len(prices) < period:
+        return None
     return sum(prices[-period:]) / period
 
 def calculate_momentum(prices: List[float], period: int = 7) -> float:

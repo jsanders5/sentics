@@ -14,6 +14,7 @@ direction / timeframe / confidence values here are the source of truth.
 """
 
 from typing import List, Dict, Tuple
+import math
 import statistics
 import time
 
@@ -42,7 +43,35 @@ FETCH_N = 50               # over-fetch so we still get 25 after dropping stable
 # `interval=daily` param is ever dropped on the demo tier (2–90d → hourly,
 # >90d → daily). Also gives the 50-day MA comfortable buffer.
 HISTORY_DAYS = 120
-MIN_PRICES = 15            # RSI(14) needs at least 15 points
+# Require a full 50-day window so MA50 / swing structure / persistence are always
+# valid (the top-25 universe always has ~120 closes). Removes the corrupted
+# short-history path.
+MIN_PRICES = 50
+
+# --- Scoring model constants (tunable; un-backtested hypotheses) ---------------
+# directional_score = trend_factor[-45,45] + momentum_factor[-40,40] + rsi_factor[-15,15]
+# → exact range [-100, +100]. Keep these as named constants so a future backtest
+# can calibrate without touching the structure.
+W_TREND = 45.0             # trend factor saturation
+W_MOM = 40.0               # momentum factor saturation
+W_RSI = 15.0               # rsi factor saturation
+K_TREND = 0.10             # trend_metric (blended % deviation) scale for tanh
+K_MOM = 12.0               # momentum blend (%) scale for tanh
+RSI_PEAK = 57.0            # RSI directional sweet spot
+RSI_WIDTH = 16.0           # RSI gaussian width
+TREND_CAP_NO_MA50 = 30.0   # reduced trend cap when MA50 unavailable (degraded mode)
+
+DIR_THRESHOLD = 20.0       # |directional_score| >= 20 → directional, else Neutral
+
+# Conviction (candidate_score) mapping
+CONV_DIR_LO, CONV_DIR_HI = 50.0, 95.0   # directional band before the volume bump
+CONV_NEU_HI = 20.0                       # neutral band ceiling (< directional floor)
+VOL_BUMP = 5.0
+VOL_CONFIRM = 1.3
+
+# Trade plan
+RR_MIN, RR_MAX = 0.5, 5.0
+MEASURED_MOVE = 0.618
 
 
 def load_stablecoin_ids() -> set:
@@ -76,7 +105,7 @@ def is_stablecoin(coin: Dict, stablecoin_ids: set) -> bool:
 
 
 def has_sufficient_data(prices: List[float], volumes: List[float]) -> bool:
-    return len(prices) >= MIN_PRICES and len(volumes) >= 1
+    return len(prices) >= MIN_PRICES and len(volumes) >= MIN_PRICES
 
 
 def _volume_ratio(volumes: List[float]) -> float:
@@ -90,95 +119,119 @@ def _volume_ratio(volumes: List[float]) -> float:
     return round(last / avg, 2) if avg > 0 else 0.0
 
 
-def calculate_technical_score(price: float, prices: List[float], rsi: float, volume_ratio: float) -> float:
-    """Bullish technical alignment, 0-58 (kept for continuity with the detail view).
-    RSI positioning (0-20) + volume strength (0-20) + MA alignment (0-18)."""
-    rsi_score = max(0, 20 - abs(rsi - 56) * 0.2)
-    volume_score = min(20, volume_ratio * 10)
+def calculate_technical_score(volume_ratio: float, trend_metric: float, mom_blend: float) -> float:
+    """Direction-AGNOSTIC setup strength, 0-58 — how clean/confirmed the move is,
+    regardless of bull vs bear (so it reads sensibly next to Bearish coins too).
 
-    ma_20 = calculate_moving_average(prices, 20)
-    ma_50 = calculate_moving_average(prices, 50)
-    above_20 = (price - ma_20) / ma_20 if ma_20 > 0 else 0
-    above_50 = (price - ma_50) / ma_50 if ma_50 > 0 else 0
-    ma_score = min(18, max(0, (above_20 + above_50) * 5))
-
-    return round(max(0, min(58, rsi_score + volume_score + ma_score)), 2)
+    Reuses the exact trend_metric / mom_blend computed in analyze_direction so the
+    two never drift. RSI is intentionally excluded here — it lives in the
+    directional score and is shown as its own field; including it would
+    re-introduce double-counting.
+    """
+    trend_strength = 25.0 * abs(math.tanh(trend_metric / K_TREND))   # 0-25
+    mom_strength = 18.0 * abs(math.tanh(mom_blend / K_MOM))          # 0-18
+    vol_strength = min(15.0, 15.0 * (volume_ratio / 2.0))           # 0-15 (saturates at 2.0x)
+    return round(max(0.0, min(58.0, trend_strength + mom_strength + vol_strength)), 2)
 
 
 def analyze_direction(
     price: float, prices: List[float], rsi: float, volume_ratio: float
 ) -> Tuple[str, float, Dict]:
-    """Return (direction, directional_score, signals) from technical signals.
+    """Return (direction, directional_score, signals).
 
-    directional_score ranges roughly -100..+100; positive = bullish bias.
+    directional_score = trend_factor[-45,45] + momentum_factor[-40,40]
+                        + rsi_factor[-15,15]  → exact range [-100, +100].
+    The three collinear MA signals collapse into ONE trend factor (no
+    double-counting); momentum and RSI carry independent weight.
     """
-    ma_20 = calculate_moving_average(prices, 20)
-    ma_50 = calculate_moving_average(prices, 50)
+    ma20 = calculate_moving_average(prices, 20)
+    ma50 = calculate_moving_average(prices, 50)
     mom_7 = calculate_momentum(prices, 7)
     mom_30 = calculate_momentum(prices, 30)
+    vol = _volatility(prices)
 
-    pct_vs_50 = (price - ma_50) / ma_50 if ma_50 > 0 else 0
-    ma_trend = (ma_20 - ma_50) / ma_50 if ma_50 > 0 else 0  # >0 = uptrend structure
+    # --- Trend factor: one metric from the (collinear) deviations, saturated ---
+    d20 = (price - ma20) / ma20 if ma20 else 0.0
+    if ma50:
+        d50 = (price - ma50) / ma50
+        dstruct = (ma20 - ma50) / ma50 if ma20 else 0.0
+        trend_metric = 0.5 * d20 + 0.3 * d50 + 0.2 * dstruct
+        trend_cap = W_TREND
+    else:
+        trend_metric = d20
+        trend_cap = TREND_CAP_NO_MA50
+    trend_factor = trend_cap * math.tanh(trend_metric / K_TREND)
 
-    score = 0.0
+    # --- Momentum factor: blend 7d/30d, saturated ---
+    mom_blend = 0.6 * mom_7 + 0.4 * mom_30
+    momentum_factor = W_MOM * math.tanh(mom_blend / K_MOM)
 
-    # Price vs moving averages
-    above_20 = price > ma_20
-    above_50 = price > ma_50
-    score += 20 if above_20 else -20
-    score += 15 if above_50 else -15
+    # --- RSI factor: smooth, signed, peaks at RSI_PEAK (no step discontinuities) ---
+    rsi_factor = W_RSI * (2 * math.exp(-((rsi - RSI_PEAK) / RSI_WIDTH) ** 2) - 1)
 
-    # Moving-average structure (golden vs death alignment)
-    ma_aligned_up = ma_20 > ma_50
-    score += 20 if ma_aligned_up else -20
+    directional_score = round(trend_factor + momentum_factor + rsi_factor, 2)
 
-    # Short- and medium-term momentum (clamped contributions)
-    score += max(-20, min(20, mom_7))
-    score += max(-15, min(15, mom_30))
-
-    # RSI regime
-    if 50 <= rsi <= 70:
-        score += 10           # healthy bullish momentum
-    elif rsi > 70:
-        score -= 5            # overbought, reversal risk
-    elif 30 <= rsi < 50:
-        score -= 10           # weak
-    else:                     # rsi < 30
-        score += 5            # oversold, mean-reversion bounce potential
-
-    if score >= 25:
+    if directional_score >= DIR_THRESHOLD:
         direction = "Bullish"
-    elif score <= -25:
+    elif directional_score <= -DIR_THRESHOLD:
         direction = "Bearish"
     else:
         direction = "Neutral"
+
+    # Directional consistency over the last 30 daily returns (0 choppy .. 1 one-way)
+    rets = [
+        (prices[i] - prices[i - 1]) / prices[i - 1]
+        for i in range(1, len(prices))
+        if prices[i - 1] > 0
+    ]
+    last_rets = rets[-30:]
+    if last_rets:
+        half = len(last_rets) / 2
+        pos_days = sum(1 for r in last_rets if r > 0)
+        directional_consistency = abs(pos_days - half) / half if half > 0 else 0.0
+    else:
+        directional_consistency = 0.0
+
+    # Display / confidence inputs (no longer score inputs — double-counting removed)
+    above_20 = (price > ma20) if ma20 else False
+    above_50 = (price > ma50) if ma50 else False
+    ma_aligned_up = (ma20 > ma50) if (ma20 and ma50) else False
 
     signals = {
         "above_20": above_20,
         "above_50": above_50,
         "ma_aligned_up": ma_aligned_up,
+        "ma50_available": ma50 is not None,
         "mom_7": mom_7,
         "mom_30": mom_30,
-        "pct_vs_50": pct_vs_50,
-        "ma_trend": ma_trend,
+        "vol": vol,
+        "directional_consistency": directional_consistency,
+        "trend_metric": trend_metric,
+        "mom_blend": mom_blend,
         "rsi": rsi,
         "volume_ratio": volume_ratio,
     }
-    return direction, round(score, 2), signals
+    return direction, directional_score, signals
 
 
 def assign_timeframe(direction: str, rsi: float, volume_ratio: float, signals: Dict) -> str:
-    """Short = near-term catalyst, Long = stable structural trend, else Medium."""
-    mom_7 = signals["mom_7"]
-    ma_trend = signals["ma_trend"]
-    pct_vs_50 = signals["pct_vs_50"]
+    """Short = fast/catalyst, Long = slow stable trend, else Medium.
 
-    # Near-term catalysts: volume spike, RSI extreme, or sharp recent move
-    if volume_ratio >= 2.0 or rsi >= 72 or rsi <= 28 or abs(mom_7) >= 15:
+    Fixes the old backwards rule: a large MA gap is a *recent sharp move*
+    (Short), not a stable trend. Long now requires calm volatility AND
+    one-directional persistence AND an established (but non-violent) move.
+    """
+    vol = signals["vol"]
+    mom_7 = signals["mom_7"]
+    mom_30 = signals["mom_30"]
+    consistency = signals["directional_consistency"]
+
+    # SHORT — spike, RSI extreme, sharp recent move, or high volatility
+    if volume_ratio >= 2.0 or rsi >= 72 or rsi <= 28 or abs(mom_7) >= 15 or vol >= 0.07:
         return "Short"
 
-    # Strong, established structural trend → longer horizon
-    if abs(ma_trend) >= 0.08 and abs(pct_vs_50) >= 0.10:
+    # LONG — calm + persistent one-way drift + a real but non-violent 30d move
+    if vol <= 0.035 and consistency >= 0.40 and abs(mom_30) >= 5:
         return "Long"
 
     return "Medium"
@@ -211,12 +264,17 @@ def assign_confidence(direction: str, symbol: str, signals: Dict) -> str:
     return tier
 
 
-def compute_candidate_score(directional_score: float, volume_ratio: float) -> float:
-    """Conviction strength (0-100), direction-agnostic. Stronger/clearer setups rank higher."""
-    base = 50 + abs(directional_score) * 0.5      # 50..100
-    if volume_ratio >= 1.3:
-        base += 5
-    return round(max(0, min(100, base)), 2)
+def compute_candidate_score(direction: str, directional_score: float, volume_ratio: float) -> float:
+    """Conviction (0-100). Neutral coins map to [0,20) so they can never outrank a
+    directional call; directional coins map |directional_score| in [20,100] to
+    [50,95], plus a +5 volume bump (directional only). Full range is used."""
+    ds = abs(directional_score)
+    if direction == "Neutral":
+        return round(min(CONV_NEU_HI, ds / DIR_THRESHOLD * CONV_NEU_HI), 2)
+    conv = CONV_DIR_LO + (ds - DIR_THRESHOLD) / (100.0 - DIR_THRESHOLD) * (CONV_DIR_HI - CONV_DIR_LO)
+    if volume_ratio >= VOL_CONFIRM:
+        conv += VOL_BUMP
+    return round(max(0.0, min(100.0, conv)), 2)
 
 
 def _fmt(p: float) -> str:
@@ -243,83 +301,104 @@ def _volatility(prices: List[float]) -> float:
 
 
 def compute_trade_plan(
-    direction: str, price: float, prices: List[float], rsi: float
+    direction: str, price: float, prices: List[float], signals: Dict
 ) -> Dict:
     """Derive a concrete, data-backed trade plan: entry/target/stop + conditions + R/R.
 
-    Long plan for Bullish, short plan for Bearish, no actionable plan for Neutral.
-    Levels come from the 20/50-day MAs, the recent 30-day swing range, and
-    close-to-close volatility. All levels are paired with a confirmation
-    condition (a price level plus an indicator/volume trigger).
+    Long for Bullish, short for Bearish, no actionable plan for Neutral. Stops sit
+    at real structural support/resistance (nearest MA50 / swing level), targets at
+    the next swing level or a measured move; volatility only acts as a floor on
+    each leg, and R/R is clamped to [0.5, 5] by adjusting the target — so R/R
+    EMERGES from structure rather than being pinned near 2:1 by construction.
     """
     ma20 = calculate_moving_average(prices, 20)
     ma50 = calculate_moving_average(prices, 50)
     recent = prices[-30:] if len(prices) >= 30 else prices
     swing_high = max(recent)
     swing_low = min(recent)
-    vol = _volatility(prices)
+    vol = signals.get("vol") if signals else None
+    if vol is None:
+        vol = _volatility(prices)
 
     levels = {
-        "ma20": round(ma20, 6),
-        "ma50": round(ma50, 6),
+        "ma20": round(ma20, 6) if ma20 is not None else None,
+        "ma50": round(ma50, 6) if ma50 is not None else None,
         "swing_high": round(swing_high, 6),
         "swing_low": round(swing_low, 6),
     }
+
+    risk_floor = max(1.0 * vol, 0.02)
+    reward_floor = max(1.0 * vol, 0.02)
 
     if direction == "Bullish":
         if price >= swing_high * 0.98:
             entry = swing_high
             entry_condition = f"Close above the recent high {_fmt(swing_high)} on volume > 1.3× average"
-        elif price >= ma20:
+        elif ma20 and price >= ma20:
             entry = ma20
             entry_condition = f"Pullback holds the 20-day MA ({_fmt(ma20)}) with RSI staying above 50"
         else:
-            entry = ma20
-            entry_condition = f"Reclaim the 20-day MA ({_fmt(ma20)}) on volume > 1.3× average"
+            entry = ma20 if ma20 else price
+            entry_condition = f"Reclaim the 20-day MA ({_fmt(entry)}) on volume > 1.3× average"
 
-        vol_target = entry * (1 + max(2 * vol, 0.05))
-        target = max(swing_high, vol_target) if swing_high > entry else vol_target
-        stop = min(ma50, swing_low)
-        if stop >= entry:
-            stop = entry * (1 - max(1.5 * vol, 0.04))
-        # Volatility floor: a stop must sit at least max(vol, 3%) below entry,
-        # otherwise a too-tight stop inflates R/R into meaningless territory.
-        stop = min(stop, entry * (1 - max(vol, 0.03)))
+        # Stop: nearest structural support below entry, then enforce the vol floor
+        supports = [s for s in (ma50, swing_low) if s is not None and s < entry]
+        struct_stop = max(supports) if supports else entry * (1 - max(2 * vol, 0.05))
+        stop = min(struct_stop, entry * (1 - risk_floor))
 
+        # Target: next resistance above entry, else a measured move on a breakout
+        if swing_high > entry:
+            struct_target = swing_high
+        else:
+            struct_target = swing_high + (swing_high - swing_low) * MEASURED_MOVE
+        target = max(struct_target, entry * (1 + reward_floor))
+
+        # Guardrails: clamp R/R into [RR_MIN, RR_MAX] by moving the target
+        risk = entry - stop
+        target = min(target, entry + RR_MAX * risk)
+        target = max(target, entry + RR_MIN * risk)
+        reward = target - entry
         target_condition = f"Take profit near {_fmt(target)} (prior resistance / +{(target/entry-1)*100:.0f}%)"
-        stop_condition = f"Invalidated on a close below {_fmt(stop)} (below 50-day MA / recent low)"
-        risk, reward = entry - stop, target - entry
+        stop_condition = f"Invalidated on a close below {_fmt(stop)} (structural support / volatility floor)"
         bias = "long"
 
     elif direction == "Bearish":
         if price <= swing_low * 1.02:
             entry = swing_low
             entry_condition = f"Breakdown below the recent low {_fmt(swing_low)} on rising volume"
-        elif price <= ma20:
+        elif ma20 and price <= ma20:
             entry = ma20
             entry_condition = f"Failed bounce into the 20-day MA ({_fmt(ma20)}) with RSI below 50"
         else:
-            entry = ma20
-            entry_condition = f"Loss of the 20-day MA ({_fmt(ma20)}) on volume > 1.3× average"
+            entry = ma20 if ma20 else price
+            entry_condition = f"Loss of the 20-day MA ({_fmt(entry)}) on volume > 1.3× average"
 
-        vol_target = entry * (1 - max(2 * vol, 0.05))
-        target = min(swing_low, vol_target) if swing_low < entry else vol_target
-        stop = max(ma50, swing_high)
-        if stop <= entry:
-            stop = entry * (1 + max(1.5 * vol, 0.04))
-        # Volatility floor: stop must sit at least max(vol, 3%) above entry.
-        stop = max(stop, entry * (1 + max(vol, 0.03)))
+        # Stop: nearest structural resistance above entry, then vol floor
+        resistances = [r for r in (ma50, swing_high) if r is not None and r > entry]
+        struct_stop = min(resistances) if resistances else entry * (1 + max(2 * vol, 0.05))
+        stop = max(struct_stop, entry * (1 + risk_floor))
 
+        # Target: next support below entry, else a measured move on a breakdown
+        if swing_low < entry:
+            struct_target = swing_low
+        else:
+            struct_target = swing_low - (swing_high - swing_low) * MEASURED_MOVE
+        target = min(struct_target, entry * (1 - reward_floor))
+
+        risk = stop - entry
+        target = max(target, entry - RR_MAX * risk)
+        target = min(target, entry - RR_MIN * risk)
+        reward = entry - target
         target_condition = f"Cover near {_fmt(target)} (prior support / {(target/entry-1)*100:.0f}%)"
-        stop_condition = f"Invalidated on a close above {_fmt(stop)} (above 50-day MA / recent high)"
-        risk, reward = stop - entry, entry - target
+        stop_condition = f"Invalidated on a close above {_fmt(stop)} (structural resistance / volatility floor)"
         bias = "short"
 
     else:  # Neutral
+        ma20_str = _fmt(ma20) if ma20 is not None else "n/a"
         return {
             "bias": "none",
             "summary": (
-                f"No clear setup — wait for a break of the 20-day MA ({_fmt(ma20)}) "
+                f"No clear setup — wait for a break of the 20-day MA ({ma20_str}) "
                 f"or the {_fmt(swing_low)}–{_fmt(swing_high)} range"
             ),
             "levels": levels,
@@ -416,10 +495,10 @@ def run(*_args, **_kwargs) -> Dict:
                 direction, directional_score, signals = analyze_direction(price, prices, rsi, volume_ratio)
                 time_horizon = assign_timeframe(direction, rsi, volume_ratio, signals)
                 confidence_tier = assign_confidence(direction, symbol, signals)
-                candidate_score = compute_candidate_score(directional_score, volume_ratio)
-                technical_score = calculate_technical_score(price, prices, rsi, volume_ratio)
+                candidate_score = compute_candidate_score(direction, directional_score, volume_ratio)
+                technical_score = calculate_technical_score(volume_ratio, signals["trend_metric"], signals["mom_blend"])
                 key_signals = build_key_signals(direction, signals, rsi, volume_ratio)
-                trade_plan = compute_trade_plan(direction, price, prices, rsi)
+                trade_plan = compute_trade_plan(direction, price, prices, signals)
 
                 candidates.append({
                     "symbol": symbol,
@@ -446,16 +525,18 @@ def run(*_args, **_kwargs) -> Dict:
                 log_error(f"Error analyzing {coin_id}", e)
                 continue
 
-        # Rank by conviction strength (most actionable first)
+        # Rank by conviction (Neutrals map to <20 so they sink to the bottom);
+        # keep the full universe so the DB prune and the dashboard count stay correct.
         candidates.sort(key=lambda x: x["candidate_score"], reverse=True)
 
-        log_info(f"Agent 2 complete: {len(candidates)} coins analyzed")
+        directional_count = sum(1 for c in candidates if c["direction"] != "Neutral")
+        log_info(f"Agent 2 complete: {len(candidates)} coins analyzed ({directional_count} directional)")
 
         return {
             "status": "success",
             "candidates": candidates,
             "total_candidates": len(candidates),
-            "low_signal_environment": len(candidates) < 5,
+            "low_signal_environment": directional_count < 5,
             "duration_seconds": round(time.time() - start_time, 2),
         }
 
