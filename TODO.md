@@ -45,20 +45,28 @@ Verified: calibration matched the spec, end-to-end invariants held, tsc/py_compi
 - [x] **MA50 guard** — `calculate_moving_average` returns None on short history;
   `MIN_PRICES` 15→50.
 
-- [~] **Backtest-calibrate the constants — HARNESS BUILT (commit 1b108c6).**
-  `api/scripts/backtest.py` replays the real scoring over historical daily closes
-  and reports directional edge / hit rate by confidence tier & conviction bucket
-  + corr(conviction, edge). Remaining = the actual calibration:
-  - Early read (3 coins, free-tier rate-limited, 365d): **confidence-tier ordering
-    works** (High +8.8% edge > Medium > Low −15%); **conviction score isn't cleanly
-    predictive yet** (corr ~0, non-monotonic buckets) → tune the conviction mapping
-    / `DIR_THRESHOLD` / weights.
-  - Run it across all 25 coins and multiple periods to get a real signal — the free
-    tier 429s after a few coins, so this needs a paid CoinGecko key, caching, or
-    spaced fetches.
-  - Add path-dependent trade-plan evaluation (did target hit before stop?) and
-    transaction costs for a truer read.
-  - Still overlaps with OHLC/ATR (#2) for the volatility/stop constants.
+- [~] **Backtest-calibrate the constants — HARNESS + CACHE + first calibration done.**
+  `api/scripts/backtest.py` (disk-cached, 429-backoff, spaced, CSV dump) replays the
+  real scoring over historical daily closes. Findings on 12 coins / 365d (501
+  samples, stable across a coin train/test split):
+  - **Trend magnitude does not predict edge** (corr(conviction,edge) ~ −0.07,
+    non-monotonic quintiles) — confirmed OOS. **Only agreement generalizes**:
+    Low-confidence calls are reliably bad (−6.8% edge), High/Medium ~flat.
+  - **Done (commit 54aa0f5):** conviction recalibrated to magnitude-base + agreement
+    (Low penalty); corr → −0.017, stable OOS; Low now ranks ~40 vs Medium ~67/High 76.
+  - **Still open / honest caveats:**
+    - Conviction is still not *positively* predictive — the directional model's edge
+      is ~0 on the last 365d (a likely choppy/mean-reverting regime for a momentum
+      model). Don't overfit one window.
+    - Validate across **multiple market regimes / longer history** before trusting
+      the constants. Free tier caps daily history ~365d → needs a paid key or
+      stitched windows for multi-year.
+    - Add **path-dependent trade-plan eval** (did target hit before stop?) +
+      transaction costs for a truer read.
+    - Bigger question this raises: does the **directional model** itself need a
+      regime filter (momentum works in trends, not chop)? That's a model-design
+      item, not just constant tuning.
+    - Still overlaps with OHLC/ATR (#2) for the volatility/stop constants.
 
 ## Other known open items
 
