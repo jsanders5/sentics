@@ -9,6 +9,15 @@ Open Questions #1, #7, and #10 assessed. #1 and #7 assessed on 2026-06-08; #10 a
 
 ---
 
+**UPDATE 2026-06-15 — The deferred pre-trade reference SHIPPED as a live "Trade Plan" feature.**
+
+The feature I flagged HIGH risk and recommended deferring to Phase 1.1 (Q10 below) is now implemented in code: `compute_trade_plan` in `api/lib/agents/agent2.py` emits specific entry/target/stop prices + R/R + buy/short confirmation conditions for all top-25 coins. It renders on the card surface (`TradePlanCompact`), the detail drawer (`TradePlanDetail`), and a "short trade" toggle gives explicit short entry/cover/stop levels. This is the trade-structuring output I said must NOT go live without separate counsel sign-off. It is now the highest-erosion element of the publisher's-exclusion defense and gates public launch.
+
+**Why:** Product shipped ahead of the Q10 deferral recommendation (commits cf5d7c9, a8a1f82). The substance — specific actionable price levels timed to a directional call — is unchanged from what was assessed HIGH risk.
+**How to apply:** Treat trade-plan levels (not just rationale text) as the load-bearing risk. Phase 1 being FREE (no "compensation" prong under IAA 202(a)(11)) is now the strongest defense — flag hard that monetization changes the analysis. The short-toggle framing is the most advice-like element and needs short-specific risk disclosure (unlimited loss, borrow, margin/liquidation). Disclaimers exist on plan detail + drawer + modal, but the CARD compact plan (`TradePlanCompact`) has none and the modal is button-gated with no first-visit acknowledgment.
+
+---
+
 **Q7 — Glassnode Licensing (assessed 2026-06-09): SKIP on-chain signals for Phase 1.**
 
 The PRD's pricing assumption of ~$39/month for Glassnode is materially wrong. Current Glassnode structure:

@@ -8,6 +8,10 @@ import { DirectionBadge } from "@/app/components/shared/DirectionBadge";
 import { ScoreRing } from "@/app/components/shared/ScoreRing";
 import { TradePlanDetail } from "@/app/components/trade/TradePlan";
 
+// Assets widely treated as commodities (not securities) — others get an extra
+// regulatory-status caveat since their classification is unsettled.
+const CLEAR_COMMODITY = new Set(["BTC", "ETH"]);
+
 interface CandidateDetailDrawerProps {
   candidate: Candidate | null;
   isOpen: boolean;
@@ -108,7 +112,7 @@ export function CandidateDetailDrawer({
                 <span className="font-semibold text-[--text-primary]">
                   {Math.round(candidate.candidate_score)}/100
                 </span>{" "}
-                conviction in this {candidate.direction.toLowerCase()} call
+                conviction in this {candidate.direction.toLowerCase()} reading
               </p>
             </div>
           )}
@@ -229,12 +233,19 @@ export function CandidateDetailDrawer({
           </div>
 
           {/* Disclaimer */}
-          <div className="border-t border-[--border] pt-6 text-xs text-[--text-muted]">
+          <div className="border-t border-[--border] pt-6 text-xs text-[--text-muted] space-y-2">
             <p className="italic">
               This analysis is for educational purposes only and should not be construed as
-              investment advice. Always conduct your own research before making any investment
-              decisions.
+              investment advice. Sentics is not a registered investment adviser or broker-dealer.
+              Always conduct your own research before making any decisions.
             </p>
+            {!CLEAR_COMMODITY.has(candidate.symbol) && (
+              <p className="italic">
+                The legal classification of {candidate.symbol} is unsettled and it may be deemed a
+                security by regulators or courts, which can affect its availability, value, and
+                legality in your jurisdiction.
+              </p>
+            )}
           </div>
         </div>
       </div>

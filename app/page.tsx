@@ -143,6 +143,16 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Persistent disclaimer footer (always visible, not modal-gated) */}
+        <footer
+          className="px-4 md:px-6 py-2 text-center text-[11px] leading-snug"
+          style={{ backgroundColor: 'var(--bg-surface)', borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}
+        >
+          Educational analysis only — not financial advice. Sentics is not a registered investment
+          adviser or broker-dealer. Trade-plan levels are illustrative and can fail. Open
+          “Disclaimer” for full terms.
+        </footer>
+
         <CandidateDetailDrawer
           candidate={selectedCandidate}
           isOpen={!!selectedCandidate}

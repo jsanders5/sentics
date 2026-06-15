@@ -33,22 +33,23 @@ export function TradePlanCompact({ plan, view }: { plan?: TradePlan; view: Beari
   const isSpotExit = plan.bias === "short" && view === "spot";
   const arrow = plan.bias === "short" ? "↓" : "↑";
 
-  if (isSpotExit) {
-    return (
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="text-[--bearish] font-semibold">Exit / avoid</span>
-        <span className="text-[--text-muted] font-mono">↓ {formatPrice(plan.target)}</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex items-center justify-between gap-2 text-xs">
-      <span className="font-mono text-[--text-secondary]">
-        {formatPrice(plan.entry)} <span className="text-[--text-muted]">{arrow}</span>{" "}
-        <span className="text-[--text-primary]">{formatPrice(plan.target)}</span>
-      </span>
-      <RiskReward rr={plan.risk_reward} />
+    <div className="space-y-1">
+      {isSpotExit ? (
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <span className="text-[--bearish] font-semibold">Exit / avoid</span>
+          <span className="text-[--text-muted] font-mono">↓ {formatPrice(plan.target)}</span>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <span className="font-mono text-[--text-secondary]">
+            {formatPrice(plan.entry)} <span className="text-[--text-muted]">{arrow}</span>{" "}
+            <span className="text-[--text-primary]">{formatPrice(plan.target)}</span>
+          </span>
+          <RiskReward rr={plan.risk_reward} />
+        </div>
+      )}
+      <p className="text-[10px] text-[--text-muted] italic">Technical levels, not advice. Can fail.</p>
     </div>
   );
 }
@@ -128,8 +129,19 @@ export function TradePlanDetail({ plan, view }: { plan?: TradePlan; view: Bearis
           Spot view: shown as risk levels to watch, not a short-trade recommendation.
         </p>
       )}
+      {isShort && !isSpotExit && (
+        <p className="text-xs italic" style={{ color: "var(--bearish)" }}>
+          Short selling carries risk of unlimited loss — losses are not capped and can exceed your
+          initial capital. Shorting requires borrowing or a margin/derivatives account on a third-party
+          venue, with borrow costs, margin calls, funding rates, and forced liquidation. Sentics does
+          not offer, custody, or execute any position. These levels are illustrative only.
+        </p>
+      )}
       <p className="text-xs text-[--text-muted] italic">
-        Educational only — not financial advice. Levels are derived from technical indicators and can fail.
+        These entry, target, and stop levels are illustrative outputs of an automated technical model —
+        not a recommendation, solicitation, or financial advice. Sentics is not a registered investment
+        adviser or broker-dealer. Levels are derived from past price data, are not predictions, and
+        frequently fail. You are solely responsible for your own trading decisions.
       </p>
     </div>
   );

@@ -358,7 +358,7 @@ def compute_trade_plan(
         target = min(target, entry + RR_MAX * risk)
         target = max(target, entry + RR_MIN * risk)
         reward = target - entry
-        target_condition = f"Take profit near {_fmt(target)} (prior resistance / +{(target/entry-1)*100:.0f}%)"
+        target_condition = f"Illustrative upside level near {_fmt(target)} (prior resistance / +{(target/entry-1)*100:.0f}%)"
         stop_condition = f"Invalidated on a close below {_fmt(stop)} (structural support / volatility floor)"
         bias = "long"
 
@@ -389,7 +389,7 @@ def compute_trade_plan(
         target = max(target, entry - RR_MAX * risk)
         target = min(target, entry - RR_MIN * risk)
         reward = entry - target
-        target_condition = f"Cover near {_fmt(target)} (prior support / {(target/entry-1)*100:.0f}%)"
+        target_condition = f"Illustrative downside level near {_fmt(target)} (prior support / {(target/entry-1)*100:.0f}%)"
         stop_condition = f"Invalidated on a close above {_fmt(stop)} (structural resistance / volatility floor)"
         bias = "short"
 

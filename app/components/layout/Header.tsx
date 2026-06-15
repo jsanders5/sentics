@@ -120,7 +120,19 @@ export function Header({ timestamp, onRefresh, refreshing }: HeaderProps) {
             <div className="space-y-5 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               <div>
                 <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Not Investment Advice</p>
-                <p>This platform provides analysis for educational purposes only. It should not be construed as investment advice, a recommendation to buy or sell any security, or an offer of services.</p>
+                <p>Sentics is not a registered investment adviser, broker-dealer, or commodity trading advisor, and nothing here is personalized to you. All analysis, directional readings, scores, and trade-plan levels are general, automated, educational information published identically to all users — not a recommendation, solicitation, or offer to buy, sell, or hold any crypto asset or security. You are solely responsible for your own decisions.</p>
+              </div>
+              <div>
+                <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Trade-Plan Levels</p>
+                <p>Entry, target, and stop levels are illustrative outputs of an automated technical model based on past price data. They are not predictions or price targets, carry no warranty of accuracy, and frequently fail. They do not account for your financial situation, objectives, or risk tolerance.</p>
+              </div>
+              <div>
+                <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Short Selling</p>
+                <p>Where a &ldquo;short&rdquo; framing is shown, be aware that short selling carries risk of unlimited loss, requires margin or derivatives on a third-party venue, and exposes you to borrow costs, funding rates, margin calls, and forced liquidation. Sentics offers no derivatives and executes nothing.</p>
+              </div>
+              <div>
+                <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Regulatory Status of Crypto Assets</p>
+                <p>The legal classification of many crypto assets is unsettled, and some may be deemed securities by regulators or courts. This may affect their availability, value, and legality in your jurisdiction.</p>
               </div>
               <div>
                 <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Market Risk</p>
