@@ -168,7 +168,7 @@ def run_backtest(coins, days, stride, fixed_horizon, cache_dir, refresh, sleep):
                 direction, dscore, signals = A.analyze_direction(price, window, rsi, vr)
                 timeframe = A.assign_timeframe(direction, rsi, vr, signals)
                 confidence = A.assign_confidence(direction, coin.upper(), signals)
-                conviction = A.compute_candidate_score(direction, dscore, vr)
+                conviction = A.compute_candidate_score(direction, dscore, vr, confidence)
 
                 horizon = fixed_horizon or HORIZON_BY_TF[timeframe]
                 if i + horizon >= n:

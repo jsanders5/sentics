@@ -63,9 +63,15 @@ TREND_CAP_NO_MA50 = 30.0   # reduced trend cap when MA50 unavailable (degraded m
 
 DIR_THRESHOLD = 20.0       # |directional_score| >= 20 → directional, else Neutral
 
-# Conviction (candidate_score) mapping
-CONV_DIR_LO, CONV_DIR_HI = 50.0, 95.0   # directional band before the volume bump
+# Conviction (candidate_score) mapping.
+# Backtest finding (12 coins / 365d, stable across a coin train/test split):
+# trend MAGNITUDE does not predict forward edge (corr ~ -0.07), but signal
+# AGREEMENT does at the low end — Low-confidence calls are reliably worse. So
+# conviction is a magnitude base TEMPERED by agreement (mainly a Low penalty),
+# rather than pure magnitude. See api/scripts/backtest.py.
+CONV_MAG_LO, CONV_MAG_HI = 50.0, 85.0    # magnitude base band (alone can't earn the top)
 CONV_NEU_HI = 20.0                       # neutral band ceiling (< directional floor)
+AGREEMENT_BONUS = {"High": 3.0, "Medium": 0.0, "Low": -18.0}  # agreement carries the OOS signal
 VOL_BUMP = 5.0
 VOL_CONFIRM = 1.3
 
@@ -264,14 +270,19 @@ def assign_confidence(direction: str, symbol: str, signals: Dict) -> str:
     return tier
 
 
-def compute_candidate_score(direction: str, directional_score: float, volume_ratio: float) -> float:
-    """Conviction (0-100). Neutral coins map to [0,20) so they can never outrank a
-    directional call; directional coins map |directional_score| in [20,100] to
-    [50,95], plus a +5 volume bump (directional only). Full range is used."""
+def compute_candidate_score(
+    direction: str, directional_score: float, volume_ratio: float,
+    confidence_tier: str = "Medium",
+) -> float:
+    """Conviction (0-100). Neutral → [0,20) so it can never outrank a directional
+    call. Directional: a magnitude base (|directional_score| in [20,100] → [50,85])
+    TEMPERED by agreement (a small High nudge, a large Low penalty — agreement is
+    the part that predicts edge out-of-sample) plus a +5 volume bump."""
     ds = abs(directional_score)
     if direction == "Neutral":
         return round(min(CONV_NEU_HI, ds / DIR_THRESHOLD * CONV_NEU_HI), 2)
-    conv = CONV_DIR_LO + (ds - DIR_THRESHOLD) / (100.0 - DIR_THRESHOLD) * (CONV_DIR_HI - CONV_DIR_LO)
+    conv = CONV_MAG_LO + (ds - DIR_THRESHOLD) / (100.0 - DIR_THRESHOLD) * (CONV_MAG_HI - CONV_MAG_LO)
+    conv += AGREEMENT_BONUS.get(confidence_tier, 0.0)
     if volume_ratio >= VOL_CONFIRM:
         conv += VOL_BUMP
     return round(max(0.0, min(100.0, conv)), 2)
@@ -495,7 +506,7 @@ def run(*_args, **_kwargs) -> Dict:
                 direction, directional_score, signals = analyze_direction(price, prices, rsi, volume_ratio)
                 time_horizon = assign_timeframe(direction, rsi, volume_ratio, signals)
                 confidence_tier = assign_confidence(direction, symbol, signals)
-                candidate_score = compute_candidate_score(direction, directional_score, volume_ratio)
+                candidate_score = compute_candidate_score(direction, directional_score, volume_ratio, confidence_tier)
                 technical_score = calculate_technical_score(volume_ratio, signals["trend_metric"], signals["mom_blend"])
                 key_signals = build_key_signals(direction, signals, rsi, volume_ratio)
                 trade_plan = compute_trade_plan(direction, price, prices, signals)
