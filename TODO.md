@@ -45,11 +45,20 @@ Verified: calibration matched the spec, end-to-end invariants held, tsc/py_compi
 - [x] **MA50 guard** — `calculate_moving_average` returns None on short history;
   `MIN_PRICES` 15→50.
 
-- [ ] **FOLLOW-UP: backtest-calibrate the constants.** The new structure is sound but
-  the named constants (`W_TREND/W_MOM/W_RSI`, `K_TREND/K_MOM`, `RSI_PEAK/RSI_WIDTH`,
-  `DIR_THRESHOLD`, conviction bands, timeframe thresholds in `agent2.py`) are
-  un-backtested hypotheses. Calibrate against forward returns before relying on the
-  exact numbers. (Overlaps with OHLC/ATR work for stop placement.)
+- [~] **Backtest-calibrate the constants — HARNESS BUILT (commit 1b108c6).**
+  `api/scripts/backtest.py` replays the real scoring over historical daily closes
+  and reports directional edge / hit rate by confidence tier & conviction bucket
+  + corr(conviction, edge). Remaining = the actual calibration:
+  - Early read (3 coins, free-tier rate-limited, 365d): **confidence-tier ordering
+    works** (High +8.8% edge > Medium > Low −15%); **conviction score isn't cleanly
+    predictive yet** (corr ~0, non-monotonic buckets) → tune the conviction mapping
+    / `DIR_THRESHOLD` / weights.
+  - Run it across all 25 coins and multiple periods to get a real signal — the free
+    tier 429s after a few coins, so this needs a paid CoinGecko key, caching, or
+    spaced fetches.
+  - Add path-dependent trade-plan evaluation (did target hit before stop?) and
+    transaction costs for a truer read.
+  - Still overlaps with OHLC/ATR (#2) for the volatility/stop constants.
 
 ## Other known open items
 
