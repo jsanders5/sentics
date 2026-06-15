@@ -46,3 +46,7 @@ next-env.d.ts
 # Scratch / local artifacts
 temp/
 .DS_Store
+
+# Backtest data cache
+api/scripts/.backtest_cache/
+backtest_*.csv
