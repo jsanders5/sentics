@@ -82,28 +82,46 @@ def get_redis_client():
         return None
 
 # CoinGecko API calls
-def fetch_coingecko(endpoint: str, params: Dict = None) -> Dict:
+def fetch_coingecko(endpoint: str, params: Dict = None, max_retries: int = 3) -> Dict:
     """Fetch data from CoinGecko API (demo or Pro).
 
     Uses x-cg-demo-api-key header for demo API key.
-    Includes request throttling (1s delay) to stay under 100 calls/min limit.
+    Throttles 1s between requests (100 calls/min limit) and retries 429/5xx
+    responses with exponential backoff (honoring Retry-After) so a transient
+    rate-limit doesn't silently drop a coin from the run.
     """
-    try:
-        url = f"https://api.coingecko.com/api/v3{endpoint}"
-        headers = {}
-        api_key = os.getenv("COINGECKO_API_KEY")
-        if api_key:
-            headers["x-cg-demo-api-key"] = api_key
+    url = f"https://api.coingecko.com/api/v3{endpoint}"
+    headers = {}
+    api_key = os.getenv("COINGECKO_API_KEY")
+    if api_key:
+        headers["x-cg-demo-api-key"] = api_key
 
-        # Rate limiting: 1s delay between requests (100 calls/min limit)
-        time.sleep(1)
+    last_exc = None
+    for attempt in range(max_retries):
+        try:
+            # Rate limiting: 1s delay between requests (100 calls/min limit)
+            time.sleep(1)
+            response = requests.get(url, params=params, headers=headers or None, timeout=10)
 
-        response = requests.get(url, params=params, headers=headers if headers else None, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        sentry_sdk.capture_exception(e)
-        raise
+            if response.status_code == 429 or response.status_code >= 500:
+                retry_after = response.headers.get("Retry-After")
+                delay = float(retry_after) if retry_after else float(2 ** attempt)
+                log_error(
+                    f"CoinGecko {response.status_code} on {endpoint}; "
+                    f"retrying in {delay:.0f}s (attempt {attempt + 1}/{max_retries})"
+                )
+                last_exc = requests.HTTPError(f"CoinGecko {response.status_code}")
+                time.sleep(delay)
+                continue
+
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            last_exc = e
+            time.sleep(float(2 ** attempt))
+
+    sentry_sdk.capture_exception(last_exc)
+    raise last_exc
 
 def fetch_top_50_coins() -> List[Dict]:
     """Fetch top 50 coins by market cap (cached 12 hours)."""
@@ -154,8 +172,23 @@ def fetch_market_chart(coin_id: str, days: int = 30) -> Dict:
         if "total_volumes" in data and "volumes" not in data:
             data["volumes"] = data["total_volumes"]
 
+        # Guard against a granularity fallback (hourly instead of daily): all
+        # downstream indicators assume daily candles. If the spacing looks
+        # intraday, log and DON'T cache the bad series for 12h.
+        prices = data.get("prices") or []
+        if len(prices) >= 3:
+            recent = prices[-10:]
+            gaps = sorted(recent[i][0] - recent[i - 1][0] for i in range(1, len(recent)))
+            median_gap = gaps[len(gaps) // 2]
+            if median_gap < 43_200_000:  # < 12h between points → not daily
+                log_error(
+                    f"market_chart for {coin_id} returned non-daily granularity "
+                    f"(median gap {median_gap / 3_600_000:.1f}h); not caching"
+                )
+                return data
+
         # Cache for 12 hours
-        if data.get("prices"):
+        if prices:
             cache_set(cache_key, data, ttl_minutes=720)
 
         return data

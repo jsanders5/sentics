@@ -38,7 +38,10 @@ STABLECOIN_SYMBOLS = {
 
 TOP_N = 25
 FETCH_N = 50               # over-fetch so we still get 25 after dropping stablecoins
-HISTORY_DAYS = 90          # enough for a valid 50-day MA
+# >90 so CoinGecko's auto-granularity returns DAILY candles even if the
+# `interval=daily` param is ever dropped on the demo tier (2–90d → hourly,
+# >90d → daily). Also gives the 50-day MA comfortable buffer.
+HISTORY_DAYS = 120
 MIN_PRICES = 15            # RSI(14) needs at least 15 points
 
 
