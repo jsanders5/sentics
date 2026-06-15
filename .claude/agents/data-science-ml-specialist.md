@@ -1,7 +1,7 @@
 ---
 name: data-science-ml-specialist
 description: "Use this agent for statistical validation, scoring formula design, and machine learning optimization for the candidate ranking pipeline. This includes: backtesting technical filters, validating scoring formula weights, calibrating on-chain signal boosts, forecasting hit rates, post-launch metrics monitoring, and recommending tuning adjustments based on outcome data."
-model: sonnet
+model: opus
 memory: project
 ---
 

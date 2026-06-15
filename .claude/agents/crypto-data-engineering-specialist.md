@@ -1,7 +1,7 @@
 ---
 name: crypto-data-engineering-specialist
 description: "Use this agent for data architecture, ETL pipeline design, and API integration for crypto trading data. This includes: designing data ingestion from CoinGecko, CryptoPanic, Glassnode, and CoinGecko Events APIs; handling rate limits and fallback chains; on-chain metrics interpretation; technical analysis data validation; sentiment normalization; data freshness monitoring; cost tracking; and designing data quality checks."
-model: sonnet
+model: opus
 memory: project
 ---
 

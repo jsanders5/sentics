@@ -1,7 +1,7 @@
 ---
 name: ai-agent-architecture-specialist
 description: "Use this agent to design and review the three-stage AI agent pipeline architecture. This includes: designing agent coupling strategies and communication patterns, defining failure modes and graceful degradation, optimizing cost and latency trade-offs, architecting the scoring formula composition, designing structured prompts for LLM consistency, evaluating LLM providers (Claude vs GPT-4o), and ensuring agent inputs/outputs are well-specified and testable."
-model: sonnet
+model: opus
 memory: project
 ---
 
