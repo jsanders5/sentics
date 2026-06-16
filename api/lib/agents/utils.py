@@ -235,6 +235,7 @@ def insert_candidates(candidates: List[Dict]):
                 "volume_ratio": candidate.get("volume_ratio"),
                 "technical_score": candidate.get("technical_score"),
                 "category_momentum": candidate.get("category_momentum"),
+                "directional_score": candidate.get("directional_score"),
                 "direction": candidate.get("direction"),
                 "time_horizon": candidate.get("time_horizon"),
                 "confidence_tier": candidate.get("confidence_tier"),
@@ -265,6 +266,53 @@ def insert_candidates(candidates: List[Dict]):
     except Exception as e:
         sentry_sdk.capture_exception(e)
         raise
+
+def get_candidates() -> List[Dict]:
+    """Load current candidate rows (for the FA stage, which runs in a separate
+    invocation from the TA stage and so can't see the in-memory intermediates)."""
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/candidates"
+        headers = get_supabase_headers()
+        response = requests.get(url, headers=headers, params={"order": "score.desc"})
+        response.raise_for_status()
+        return response.json() or []
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        log_error("Failed to load candidates", e)
+        return []
+
+
+def update_candidate_fa(symbol: str, fields: Dict):
+    """PATCH only the FA + conviction columns for one symbol — does NOT touch the
+    TA / rationale / trade_plan columns the TA stage already wrote."""
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/candidates"
+        headers = get_supabase_headers()
+        headers["Prefer"] = "return=minimal"
+        response = requests.patch(
+            url, json=fields, headers=headers, params={"symbol": f"eq.{symbol}"}
+        )
+        response.raise_for_status()
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        log_error(f"Failed to update FA for {symbol}", e)
+
+
+def trigger_async(path: str, params: Dict = None):
+    """Fire-and-forget POST to one of our own backend stage endpoints. Sends the
+    request (which invokes the target serverless function) but does not wait for
+    it to finish — a short read timeout is expected and swallowed. Lets the
+    pipeline chain stages without any single invocation exceeding the time limit."""
+    base = os.getenv("AGENTS_SELF_URL", "https://sentics-agents.vercel.app").rstrip("/")
+    url = f"{base}{path}"
+    try:
+        # connect generously, then stop waiting for the body (it keeps running)
+        requests.post(url, params=params or {}, timeout=(8, 1))
+    except requests.exceptions.ReadTimeout:
+        pass  # expected — the target function is now running independently
+    except Exception as e:
+        log_error(f"Failed to trigger {path}", e)
+
 
 def insert_fa_snapshots(rows: List[Dict]):
     """APPEND point-in-time FA snapshots (one row per coin per run). Never upserts

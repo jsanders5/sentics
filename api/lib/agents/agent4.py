@@ -166,55 +166,53 @@ def combine_ta_fa(candidate: Dict) -> None:
     )
 
 
-def run(agent2_result: Dict) -> Dict:
-    """Run Agent 4 over Agent 2's candidates: attach FA + blend into conviction."""
-    import time as _t
-    start = _t.time()
-
-    candidates = agent2_result.get("candidates", [])
+def score_candidates(candidates: List[Dict]) -> List[Dict]:
+    """FA-score + blend a list of candidate dicts (concurrent). Used by the chunked
+    FA pipeline stage on a small batch loaded from the DB. Never raises; on a
+    missing key or per-coin failure the coin gets neutral FA."""
     if not candidates:
-        return {"status": "success", "candidates_with_fa": [], "total_processed": 0,
-                "total_failed": 0, "duration_seconds": 0}
+        return []
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        log_error("ANTHROPIC_API_KEY not set; skipping FA (neutral)")
+        log_error("ANTHROPIC_API_KEY not set; FA neutral for this batch")
+        out = []
         for c in candidates:
-            c.update(NEUTRAL_FA)
-            combine_ta_fa(c)
-        return {"status": "partial", "candidates_with_fa": candidates,
-                "total_processed": 0, "total_failed": len(candidates),
-                "duration_seconds": round(_t.time() - start, 2)}
+            m = {**c, **NEUTRAL_FA}
+            combine_ta_fa(m)
+            out.append(m)
+        return out
 
     client = anthropic.Anthropic(api_key=api_key, max_retries=3, timeout=120.0)
-    log_info(f"Agent 4 starting: news/catalyst FA for {len(candidates)} coins")
 
     def score(c):
-        # Skip the (slow, paid) news scan for Neutral coins — there's no directional
-        # call to enrich. Cuts web-search cost and run time.
+        # Skip the (slow, paid) news scan for Neutral coins — nothing to enrich.
         if c.get("direction", "Neutral") == "Neutral":
-            merged = {**c, **NEUTRAL_FA}
-            combine_ta_fa(merged)
-            return merged, True
+            m = {**c, **NEUTRAL_FA}
+            combine_ta_fa(m)
+            return m
         fa = _search_and_score(client, c.get("name", ""), c.get("symbol", "?"))
-        merged = {**c, **fa}
-        combine_ta_fa(merged)
-        is_neutral = fa["catalyst"] == "none" and fa["fa_score"] == 0.0
-        if not is_neutral:
+        m = {**c, **fa}
+        combine_ta_fa(m)
+        if fa["catalyst"] != "none" or fa["fa_score"] != 0.0:
             log_info(f"  {c.get('symbol')}: catalyst={fa['catalyst']} fa_score={fa['fa_score']:+.2f}")
-        return merged, is_neutral
+        return m
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-        results = list(ex.map(score, candidates))
+        return list(ex.map(score, candidates))
 
-    out = [r for r, _ in results]
-    failed = sum(1 for _, neutral in results if neutral)
-    log_info(f"Agent 4 complete: {len(out) - failed} catalysts found, {failed} neutral/failed")
 
+def run(agent2_result: Dict) -> Dict:
+    """Score Agent 2's candidates in one shot (non-split usage / tests)."""
+    import time as _t
+    start = _t.time()
+    candidates = agent2_result.get("candidates", [])
+    out = score_candidates(candidates)
+    found = sum(1 for c in out if c.get("catalyst") not in (None, "none"))
     return {
         "status": "success",
         "candidates_with_fa": out,
-        "total_processed": len(out),
-        "total_failed": failed,
+        "total_processed": found,
+        "total_failed": len(out) - found,
         "duration_seconds": round(_t.time() - start, 2),
     }

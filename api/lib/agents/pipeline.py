@@ -11,9 +11,14 @@ from datetime import datetime
 from typing import Dict
 from .utils import (
     insert_candidates, delete_candidates_except, insert_fa_snapshots,
+    get_candidates, update_candidate_fa, trigger_async,
     insert_pipeline_run, cache_set, cache_invalidate, log_info, log_error
 )
 from . import agent2, agent3, agent4
+
+# FA stage runs in small self-chaining batches so no single serverless invocation
+# exceeds the function time limit (web search is slow).
+FA_BATCH = 5
 
 def run_pipeline(trigger_type: str = "scheduled") -> Dict:
     """
@@ -79,6 +84,7 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "volume_ratio": c.get("volume_ratio", 0),
                 "technical_score": c.get("technical_score", 0),
                 "category_momentum": c.get("category_momentum", 0),
+                "directional_score": c.get("directional_score", 0),
                 "direction": c.get("direction", "Neutral"),
                 "time_horizon": c.get("time_horizon", "Medium"),
                 "confidence_tier": c.get("confidence_tier", "Low"),
@@ -122,19 +128,12 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
             cache_set("last_update_ts", start_time.isoformat())
 
         # ---- FRESHNESS FLOOR ----
-        # Persist the TA candidates immediately. The expensive steps below (Agent 4
-        # web search, Agent 3 rationale) can blow past the serverless time limit and
-        # get SIGKILL'd with no continuation — this guarantees the dashboard is fresh
-        # even if that happens; FA/rationale then enrich it when the run completes.
+        # Persist TA candidates immediately, so even if Agent 3 is slow and the
+        # function is SIGKILL'd at the time limit, the dashboard is still fresh.
         log_info("Persisting TA freshness floor...")
         _persist(agent2_result["candidates"])
 
-        # ============ AGENT 4: FUNDAMENTAL ANALYSIS (news/catalyst) ============
-        log_info("Running Agent 4 (FA)...")
-        agent4_result = agent4.run(agent2_result)
-        agent2_result["candidates"] = agent4_result.get("candidates_with_fa", agent2_result["candidates"])
-
-        # ============ AGENT 3: AI SYNTHESIS (FA-aware rationale) ============
+        # ============ AGENT 3: AI SYNTHESIS (rationale on TA) ============
         log_info("Running Agent 3...")
         agent3_result = agent3.run(agent2_result)
         if agent3_result["status"] != "success":
@@ -146,8 +145,17 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "total_failed": 0,
             }
 
-        # ---- FULL ENRICHED WRITE (TA + FA + rationale) + point-in-time snapshot ----
-        _persist(agent3_result.get("candidates_with_rationales", []), fa_snapshot=True)
+        # Full TA + rationale write (FA is added later by the chunked FA stage).
+        _persist(agent3_result.get("candidates_with_rationales", []))
+
+        # ---- TRIGGER STAGE 2 (FA), fire-and-forget ----
+        # FA (web search) is too slow to fit this invocation, so it runs as its own
+        # self-chaining batched stage that PATCHes FA onto the rows we just wrote.
+        directional = sum(1 for c in agent2_result["candidates"]
+                          if c.get("direction") in ("Bullish", "Bearish"))
+        if directional:
+            log_info(f"Triggering FA stage for {directional} directional candidates...")
+            trigger_async("/api/run-fa", {"offset": 0, "batch": FA_BATCH})
 
         # Invalidate old cache if needed
         cache_invalidate("candidates:stale", "categories:stale")
@@ -175,10 +183,6 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                     "status": agent2_result.get("status"),
                     "duration_seconds": agent2_result.get("duration_seconds", 0)
                 },
-                "agent4": {
-                    "status": agent4_result.get("status"),
-                    "duration_seconds": agent4_result.get("duration_seconds", 0)
-                },
                 "agent3": {
                     "status": agent3_result.get("status"),
                     "duration_seconds": agent3_result.get("duration_seconds", 0)
@@ -186,8 +190,8 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
             },
             "summary": {
                 "candidates_discovered": agent2_result.get("total_candidates", 0),
-                "catalysts_found": agent4_result.get("total_processed", 0) - agent4_result.get("total_failed", 0),
-                "rationales_generated": agent3_result.get("total_processed", 0)
+                "rationales_generated": agent3_result.get("total_processed", 0),
+                "fa_stage": "triggered (async, chunked)"
             }
         }
 
@@ -215,3 +219,62 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "end": end_time.isoformat()
             }
         }
+
+
+def run_fa_stage(offset: int = 0, batch: int = FA_BATCH) -> Dict:
+    """Stage 2 (chunked): FA-score one batch of directional candidates loaded from
+    the DB, PATCH FA + re-blended conviction onto those rows, append point-in-time
+    snapshots, then fire-and-forget the next batch. Small batches keep each
+    invocation well under the serverless time limit, so FA reliably completes."""
+    try:
+        rows = get_candidates()
+        directional = sorted(
+            [r for r in rows if r.get("direction") in ("Bullish", "Bearish")],
+            key=lambda r: r.get("symbol", ""),  # deterministic order across invocations
+        )
+        total = len(directional)
+        chunk = directional[offset:offset + batch]
+        if not chunk:
+            log_info(f"FA stage: nothing to do at offset {offset}/{total}")
+            return {"status": "success", "processed": 0, "offset": offset, "total": total}
+
+        log_info(f"FA stage: scoring {offset}-{offset + len(chunk)} of {total} directional candidates")
+        scored = agent4.score_candidates(chunk)
+
+        snapshots = []
+        for c in scored:
+            update_candidate_fa(c["symbol"], {
+                "fa_score": c.get("fa_score"),
+                "sentiment": c.get("sentiment"),
+                "catalyst": c.get("catalyst"),
+                "fa_summary": c.get("fa_summary"),
+                "fa_confidence": c.get("fa_confidence"),
+                "fa_sources": c.get("fa_sources"),
+                "score": c.get("candidate_score"),  # re-blended TA+FA conviction
+            })
+            snapshots.append({
+                "symbol": c["symbol"], "name": c.get("name"), "price": c.get("price"),
+                "fa_score": c.get("fa_score"), "sentiment": c.get("sentiment"),
+                "magnitude": c.get("magnitude"), "catalyst": c.get("catalyst"),
+                "fa_confidence": c.get("fa_confidence"), "fa_summary": c.get("fa_summary"),
+                "fa_sources": c.get("fa_sources"),
+            })
+        insert_fa_snapshots(snapshots)
+
+        next_offset = offset + batch
+        if next_offset < total:
+            trigger_async("/api/run-fa", {"offset": next_offset, "batch": batch})
+            log_info(f"FA stage: chained next batch at offset {next_offset}")
+        else:
+            log_info(f"FA stage complete: {total} directional candidates enriched")
+
+        return {
+            "status": "success",
+            "processed": len(scored),
+            "offset": offset,
+            "total": total,
+            "next_offset": next_offset if next_offset < total else None,
+        }
+    except Exception as e:
+        log_error("FA stage failed", e)
+        return {"status": "error", "error": str(e), "offset": offset}
