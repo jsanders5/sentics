@@ -17,9 +17,12 @@ export function useCandidates(): UseCandidatesResult {
   const [error, setError] = useState<string | null>(null);
   const [timestamp, setTimestamp] = useState<string | null>(null);
 
-  const fetchCandidates = useCallback(async () => {
+  // silent = background refresh: update in place (no skeleton flash / animation
+  // replay = no "blink"), and don't blank the grid on a transient failure.
+  const fetchCandidates = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await fetch("/api/candidates");
       if (!response.ok) {
         const text = await response.text();
@@ -33,19 +36,21 @@ export function useCandidates(): UseCandidatesResult {
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Failed to load candidates";
       console.error("[useCandidates] Error:", errMsg);
-      setError(errMsg);
-      setCandidates([]);
+      if (!silent) {
+        setError(errMsg);
+        setCandidates([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchCandidates();
-    // Auto-refresh every 5 minutes
-    const interval = setInterval(fetchCandidates, 5 * 60 * 1000);
+    fetchCandidates(); // initial load shows the skeleton
+    // Background auto-refresh every 5 minutes (silent — no blink)
+    const interval = setInterval(() => fetchCandidates({ silent: true }), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchCandidates]);
 
-  return { candidates, loading, error, timestamp, refetch: fetchCandidates };
+  return { candidates, loading, error, timestamp, refetch: () => fetchCandidates({ silent: true }) };
 }

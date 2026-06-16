@@ -116,7 +116,7 @@ export function CandidatesGrid({
       <GridShell>
         {candidates.map((candidate, i) => (
           <CandidateCard
-            key={`${candidate.symbol}-${i}`}
+            key={candidate.symbol}
             candidate={candidate}
             index={i}
             bearishView={bearishView}
