@@ -137,8 +137,7 @@ Respond with ONLY a JSON object — no prose before or after:
   "magnitude": <number 0.0..1.0, how market-moving the catalyst is>,
   "catalyst": "<short label, e.g. 'ETF flows', 'listing', 'hack', 'regulation', 'partnership', 'none'>",
   "confidence": "High|Medium|Low",
-  "summary": "<1-2 sentences citing the specific catalyst, or 'No significant catalyst.'>",
-  "sources": [{{"title": "...", "url": "..."}}]
+  "summary": "<1-2 sentences citing the specific catalyst, or 'No significant catalyst.'>"
 }}
 """
 
@@ -204,12 +203,13 @@ def _classify(client: "anthropic.Anthropic", name: str, symbol: str, headlines: 
         if not text:
             return dict(NEUTRAL_FA)
         fa = parse_fa(text)
-        # Fall back to the fetched headlines for sources if the model didn't echo any.
-        if not fa.get("fa_sources"):
-            fa["fa_sources"] = [
-                {"title": h.get("title", "")[:200], "url": h.get("url", "")[:500]}
-                for h in headlines[:3] if h.get("url")
-            ]
+        # Sources = the ACTUAL headlines we fed the model (the evidence base), not
+        # the model's echoed list — consistent run-to-run, complete, and free of
+        # hallucinated URLs (the model's `sources` field varied/dropped entries).
+        fa["fa_sources"] = [
+            {"title": h.get("title", "")[:200], "url": h.get("url", "")[:500]}
+            for h in headlines[:3] if h.get("url")
+        ]
         return fa
     except Exception as e:  # noqa: BLE001 — news layer must never break the pipeline
         log_error(f"FA classify failed for {symbol}", e)

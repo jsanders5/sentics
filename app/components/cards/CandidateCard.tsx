@@ -69,9 +69,13 @@ export function CandidateCard({ candidate, index, bearishView, onSelect }: Candi
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {candidate.confidence_tier && <ConfidenceBadge tier={candidate.confidence_tier} size="sm" />}
         {candidate.time_horizon && <HorizonBadge horizon={candidate.time_horizon} size="sm" />}
-        {candidate.catalyst && candidate.catalyst !== "none" && (
+      </div>
+
+      {/* News catalyst — sizes to its text, caps at the card width, wraps if long */}
+      {candidate.catalyst && candidate.catalyst !== "none" && (
+        <div className="mt-2">
           <span
-            className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium"
+            className="inline-flex max-w-full items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium align-top"
             style={{
               backgroundColor: "var(--bg-raised)",
               borderColor: "var(--border)",
@@ -83,10 +87,10 @@ export function CandidateCard({ candidate, index, bearishView, onSelect }: Candi
             title={`News catalyst: ${candidate.catalyst}`}
           >
             <span aria-hidden>📰</span>
-            <span className="max-w-[7rem] truncate">{candidate.catalyst}</span>
+            <span className="min-w-0 break-words">{candidate.catalyst}</span>
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Trade plan summary */}
       <div className="mt-3 border-t border-[--border] pt-3">
