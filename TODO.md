@@ -71,14 +71,24 @@ Verified: calibration matched the spec, end-to-end invariants held, tsc/py_compi
       transaction costs for a truer read.
     - Still overlaps with OHLC/ATR (#2) for the volatility/stop constants.
 
-- [ ] **Regime filter for the directional model (NEW — highest-value lead).** The
-  backtest shows edge is strongly regime-dependent (positive in trending periods,
-  negative in chop) — a momentum model with no regime gate. Add a market/trend
-  regime indicator (e.g., BTC trend state, breadth, or per-coin trend-quality gate)
-  and only surface/▲rank directional calls when the regime supports them; suppress
-  or down-rank in chop. This is a model-design change, likely worth more than any
-  further constant tuning. Validate with the existing backtest harness
-  (sub-period + per-regime edge).
+- [ ] **Directional model: separate skill from beta, then decide framing (NEW —
+  supersedes the naive regime-filter idea).** A momentum regime gate was prototyped
+  (`market_regime`/`regime_allows` in agent2, experimental/not wired) and
+  **backtested — it made edge WORSE** (TAKEN −1.3% vs ungated +0.8%). The bias/beta
+  diagnostic (now in `backtest.py`) explains why: on the tested 365d window the
+  model was net-short (65% Bearish) while price fell −5.6%, so the apparent edge is
+  largely **directional beta**, not timing — Bullish calls lost −6.9%, Bearish won
+  +4.9%. It also behaves **contrarian** here (Bearish/up +11.7% hit 76%; Bullish/up
+  −7.4%), the opposite of momentum. Open work:
+    - **Get multi-regime data** (a bull AND a bear window) — single down-window
+      results can't separate skill from beta. Needs paid CoinGecko / stitched
+      history beyond the free ~365d.
+    - **Evaluate edge market-relative** (vs BTC / vs equal-weight basket), not raw,
+      to strip beta.
+    - Then decide: is the directional model momentum or contrarian — or is it mostly
+      a directional bet that should be presented as such? This is a model-DESIGN
+      question, not constant tuning.
+    - Add path-dependent (target-vs-stop) evaluation alongside.
 
 ## Other known open items
 
