@@ -152,6 +152,17 @@ def conviction_bucket(c):
 
 def run_backtest(coins, days, stride, fixed_horizon, cache_dir, refresh, sleep):
     samples = []
+
+    # Precompute the market regime (from BTC) at each index for the regime filter.
+    # BTC and every coin share the same trailing 365d window, so index ≈ calendar.
+    btc_regime = {}
+    try:
+        btc_closes, _, _ = cached_series("bitcoin", days, cache_dir, refresh)
+        for i in range(A.MIN_PRICES, len(btc_closes)):
+            btc_regime[i] = A.market_regime(btc_closes[:i + 1])
+    except Exception as e:  # noqa: BLE001
+        print(f"  ! could not load BTC for market regime ({e}); gate disabled", file=sys.stderr)
+
     for coin in coins:
         try:
             closes, volumes, from_cache = cached_series(coin, days, cache_dir, refresh)
@@ -178,12 +189,15 @@ def run_backtest(coins, days, stride, fixed_horizon, cache_dir, refresh, sleep):
                     continue
                 fwd = (closes[i + horizon] - price) / price
                 sign = 1 if direction == "Bullish" else -1 if direction == "Bearish" else 0
+                market = btc_regime.get(i, "chop")
                 samples.append({
                     "coin": coin, "index": i, "direction": direction,
                     "confidence": confidence, "conviction": conviction,
                     "directional_score": dscore, "timeframe": timeframe,
                     "horizon": horizon, "forward_return": round(fwd, 6),
                     "edge": round(fwd * sign, 6), "sign": sign,
+                    "market": market,
+                    "regime_ok": A.regime_allows(direction, market, signals),
                 })
             tag = "cache" if from_cache else "fetched"
             print(f"  · {coin}: {n} closes ({tag})", file=sys.stderr)
@@ -255,12 +269,76 @@ def report(samples, fixed_horizon):
         corr = pearson([s["conviction"] for s in directional], [s["edge"] for s in directional])
         print(f"\ncorr(conviction, edge) = {corr:+.3f}  "
               f"(want clearly positive — higher conviction → higher edge)")
+
+    _bias_eval(directional)
+    _regime_eval(directional)
     print("=" * 64)
+
+
+def _bias_eval(directional):
+    """Separate skill from market beta: if the calls are one-sided and the sample
+    window trended one way, raw 'edge' is mostly directional bias, not timing."""
+    if not directional:
+        return
+    nb = [s for s in directional if s["direction"] == "Bullish"]
+    ne = [s for s in directional if s["direction"] == "Bearish"]
+    raw = sum(s["forward_return"] for s in directional) / len(directional)
+    print("\n" + "-" * 64)
+    print("DIRECTIONAL BIAS / BETA CHECK")
+    print("-" * 64)
+    print(f"  mix: Bullish {len(nb)} ({len(nb)/len(directional)*100:.0f}%) | "
+          f"Bearish {len(ne)} ({len(ne)/len(directional)*100:.0f}%)")
+    print("  " + _summary("Bullish edge", nb))
+    print("  " + _summary("Bearish edge", ne))
+    print(f"  mean RAW forward return (all calls) = {raw*100:+.2f}%  "
+          f"(far from 0 ⇒ one-directional market sample; 'edge' may be beta)")
+    print("  edge by direction × market regime:")
+    for dr in ("Bullish", "Bearish"):
+        for mk in ("up", "down", "chop"):
+            sub = [s for s in directional if s["direction"] == dr and s.get("market") == mk]
+            print("    " + _summary(f"{dr}/{mk}", sub))
+
+
+def _regime_eval(directional):
+    """Compare edge with vs without the regime filter (the prototype's verdict)."""
+    if not any("regime_ok" in s for s in directional):
+        return
+    taken = [s for s in directional if s["regime_ok"]]
+    blocked = [s for s in directional if not s["regime_ok"]]
+    cov = len(taken) / len(directional) * 100 if directional else 0
+
+    print("\n" + "-" * 64)
+    print("REGIME FILTER (BTC market trend + per-coin trend quality)")
+    print("-" * 64)
+    print(_summary("all directional (no gate)", directional))
+    print(_summary("TAKEN (gate passed)", taken) + f"   coverage={cov:.0f}%")
+    print(_summary("BLOCKED (gate failed)", blocked))
+
+    # Does the gate fix the losing late/chop third?
+    print("\n  Sub-period — TAKEN only:")
+    idxs = [s["index"] for s in taken]
+    if idxs:
+        lo, hi = min(idxs), max(idxs)
+        span = max(1, (hi - lo) / 3)
+        for k, name in enumerate(("early", "mid", "late")):
+            chunk = [s for s in taken if min(2, int((s["index"] - lo) / span)) == k]
+            print("    " + _summary(name, chunk))
+
+    # Out-of-sample stability: coin train/test split on TAKEN
+    coins = sorted({s["coin"] for s in taken})
+    if len(coins) >= 4:
+        half = len(coins) // 2
+        train = [s for s in taken if s["coin"] in set(coins[:half])]
+        test = [s for s in taken if s["coin"] in set(coins[half:])]
+        print("\n  Out-of-sample (coin split) — TAKEN:")
+        print("    " + _summary("train coins", train))
+        print("    " + _summary("test coins", test))
 
 
 def dump_samples(samples, path):
     cols = ["coin", "index", "direction", "confidence", "conviction",
-            "directional_score", "timeframe", "horizon", "forward_return", "edge"]
+            "directional_score", "timeframe", "horizon", "forward_return", "edge",
+            "market", "regime_ok"]
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()

@@ -82,6 +82,10 @@ VOL_CONFIRM = 1.3
 RR_MIN, RR_MAX = 0.5, 5.0
 MEASURED_MOVE = 0.618
 
+# Regime filter — the directional (momentum) model only has edge in trends; the
+# backtest shows it inverts in chop. These gate which calls are "actionable".
+REGIME_MIN_CONSISTENCY = 0.30   # per-coin: min one-directional persistence (~30d)
+
 
 def load_stablecoin_ids() -> set:
     """Authoritative stablecoin CoinGecko IDs (cached 12h). Falls back to the
@@ -244,6 +248,45 @@ def assign_timeframe(direction: str, rsi: float, volume_ratio: float, signals: D
         return "Long"
 
     return "Medium"
+
+
+def market_regime(prices: List[float]) -> str:
+    """Broad market regime from a reference series (BTC): 'up' | 'down' | 'chop'.
+
+    Trend up   = price above the 50d MA AND 20d above 50d (golden alignment).
+    Trend down = the mirror. Anything else (price fighting the MAs) = chop.
+    """
+    ma20 = calculate_moving_average(prices, 20)
+    ma50 = calculate_moving_average(prices, 50)
+    if ma20 is None or ma50 is None or not prices:
+        return "chop"
+    price = prices[-1]
+    if price > ma50 and ma20 > ma50:
+        return "up"
+    if price < ma50 and ma20 < ma50:
+        return "down"
+    return "chop"
+
+
+def regime_allows(direction: str, market: str, signals: Dict) -> bool:
+    """EXPERIMENTAL — NOT wired into run(). A naive momentum gate (take only calls
+    aligned with the market trend). The backtest on a single down-trending 365d
+    window showed this gate REDUCES edge (it selects extended setups that
+    mean-revert; fading strength worked better than following it). Do NOT apply in
+    the pipeline until validated across multiple market regimes — see
+    api/scripts/backtest.py and TODO.md. Kept as a building block for that work.
+
+    Momentum framing: stand down in market chop, don't fight the market, and skip
+    coins whose own recent trend is choppy."""
+    if direction == "Neutral":
+        return False
+    if market == "chop":
+        return False
+    if direction == "Bullish" and market != "up":
+        return False
+    if direction == "Bearish" and market != "down":
+        return False
+    return signals.get("directional_consistency", 0.0) >= REGIME_MIN_CONSISTENCY
 
 
 def assign_confidence(direction: str, symbol: str, signals: Dict) -> str:
