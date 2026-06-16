@@ -7,10 +7,12 @@ structured catalyst read: net sentiment, magnitude, a catalyst label, a short
 summary, and sources. Produces `fa_score = sentiment * magnitude` in [-1, +1],
 which the pipeline BLENDS with the TA directional score.
 
-Why a news API + classify (not Claude's web_search tool): web_search carries a
-per-search fee (a run cost ~$5); fetching headlines from a free API and feeding
-them to a cheap model removes that fee entirely, and the API's publish timestamps
-are better for point-in-time integrity. Swap the source by replacing fetch_news().
+News source: free, keyless crypto-news RSS feeds (the API free tiers — CryptoPanic,
+CryptoCompare, CoinDesk Data — now all require paid keys; RSS doesn't get
+discontinued the same way). We fetch the feeds ONCE per run, then filter the
+combined items per coin by name/symbol. A cheap model classifies the matches. This
+removes the web_search per-search fee (~$5/run) entirely. Swap sources by editing
+RSS_FEEDS / fetch_news_feed().
 
 Point-in-time integrity (accumulate-forward): headlines are read AT RUN TIME and
 frozen into a daily snapshot — the leak-free record the FA backtest replays.
@@ -27,6 +29,7 @@ Design choices:
 import os
 import json
 import re
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional
 
@@ -41,8 +44,16 @@ from .agent2 import compute_candidate_score
 AGENT4_MODEL = os.getenv("AGENT4_MODEL", "claude-haiku-4-5")
 MAX_WORKERS = 4
 MAX_TOKENS = 1024
-NEWS_LIMIT = 10
-CRYPTOPANIC_URL = "https://cryptopanic.com/api/v1/posts/"
+NEWS_LIMIT = 8
+HTTP_UA = "Mozilla/5.0 (compatible; sentics-bot/1.0)"
+
+# Free, keyless crypto-news RSS feeds. Override with AGENT4_RSS_FEEDS (comma-sep).
+RSS_FEEDS = [
+    "https://cointelegraph.com/rss",
+    "https://www.coindesk.com/arc/outboundfeeds/rss/",
+    "https://decrypt.co/feed",
+    "https://cryptoslate.com/feed/",
+]
 
 # Conservative, UN-CALIBRATED weight: how much a full-strength catalyst (|fa_score|=1)
 # adds to / subtracts from the TA magnitude (~[20,100]) when computing conviction.
@@ -56,31 +67,56 @@ NEUTRAL_FA = {
 }
 
 
-def fetch_news(symbol: str, limit: int = NEWS_LIMIT) -> List[Dict]:
-    """Recent headlines for a coin from CryptoPanic (free tier). Returns [] if no
-    CRYPTOPANIC_API_KEY is set or the request fails (→ neutral FA, no model call).
-    Swap this function to change the news source."""
-    token = os.getenv("CRYPTOPANIC_API_KEY")
-    if not token:
-        return []
-    try:
-        resp = requests.get(CRYPTOPANIC_URL, params={
-            "auth_token": token,
-            "currencies": symbol,
-            "kind": "news",
-            "public": "true",
-            "regions": "en",
-        }, timeout=15)
-        resp.raise_for_status()
-        results = resp.json().get("results", [])[:limit]
-        return [
-            {"title": r.get("title", ""), "url": r.get("url", ""),
-             "published_at": r.get("published_at", "")}
-            for r in results if r.get("title")
-        ]
-    except Exception as e:  # noqa: BLE001
-        log_error(f"News fetch failed for {symbol}", e)
-        return []
+def _strip_html(s: str) -> str:
+    return re.sub(r"<[^>]+>", " ", s or "").strip()
+
+
+def fetch_news_feed() -> List[Dict]:
+    """Fetch + parse all RSS feeds ONCE per run into a combined, deduped item list.
+    Each item: {title, url, published_at, text, categories}. Returns [] on total
+    failure (→ neutral FA). Swap RSS_FEEDS / this function to change sources."""
+    feeds = os.getenv("AGENT4_RSS_FEEDS")
+    feed_urls = [u.strip() for u in feeds.split(",")] if feeds else RSS_FEEDS
+    items, seen = [], set()
+    for url in feed_urls:
+        try:
+            resp = requests.get(url, headers={"User-Agent": HTTP_UA}, timeout=15)
+            resp.raise_for_status()
+            root = ET.fromstring(resp.content)
+            for it in root.findall(".//item"):
+                title = (it.findtext("title") or "").strip()
+                link = (it.findtext("link") or "").strip()
+                if not title or link in seen:
+                    continue
+                seen.add(link)
+                desc = _strip_html(it.findtext("description") or "")
+                cats = " ".join((c.text or "") for c in it.findall("category"))
+                items.append({
+                    "title": title, "url": link,
+                    "published_at": (it.findtext("pubDate") or "").strip(),
+                    "text": f"{title} {desc} {cats}",
+                    "categories": cats,
+                })
+        except Exception as e:  # noqa: BLE001 — one bad feed shouldn't sink the rest
+            log_error(f"RSS fetch failed for {url}", e)
+    log_info(f"Fetched {len(items)} news items from {len(feed_urls)} feeds")
+    return items
+
+
+def headlines_for(symbol: str, name: str, feed: List[Dict], limit: int = NEWS_LIMIT) -> List[Dict]:
+    """Filter the combined feed for items relevant to a coin: full name match
+    (case-insensitive) or symbol as a standalone token. Returns up to `limit`."""
+    name_l = (name or "").lower().strip()
+    sym = (symbol or "").upper().strip()
+    sym_re = re.compile(rf"\b{re.escape(sym)}\b") if sym else None
+    out = []
+    for it in feed:
+        text = it["text"]
+        if (name_l and len(name_l) >= 3 and name_l in text.lower()) or (sym_re and sym_re.search(text)):
+            out.append({"title": it["title"], "url": it["url"], "published_at": it["published_at"]})
+            if len(out) >= limit:
+                break
+    return out
 
 
 def build_prompt(name: str, symbol: str, headlines: List[Dict]) -> str:
@@ -219,16 +255,17 @@ def score_candidates(candidates: List[Dict]) -> List[Dict]:
         return out
 
     client = anthropic.Anthropic(api_key=api_key, max_retries=3, timeout=120.0)
+    feed = fetch_news_feed()  # one fetch, shared across the batch
 
     def score(c):
-        # Skip the (slow, paid) news scan for Neutral coins — nothing to enrich.
+        # Skip Neutral coins — nothing to enrich.
         if c.get("direction", "Neutral") == "Neutral":
             m = {**c, **NEUTRAL_FA}
             combine_ta_fa(m)
             return m
-        headlines = fetch_news(c.get("symbol", "?"))
+        headlines = headlines_for(c.get("symbol", "?"), c.get("name", ""), feed)
         if not headlines:
-            fa = dict(NEUTRAL_FA)  # no key / no news → neutral, no model call (free)
+            fa = dict(NEUTRAL_FA)  # no matching news → neutral, no model call (free)
         else:
             fa = _classify(client, c.get("name", ""), c.get("symbol", "?"), headlines)
         m = {**c, **fa}
