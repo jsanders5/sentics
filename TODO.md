@@ -9,10 +9,13 @@ Tracked follow-ups for the sentics platform.
   into conviction (agreement strengthens, opposition weakens; does NOT flip the TA
   direction yet). Append-only `fa_snapshots` logs a point-in-time read each run.
   - [x] **Run migration 004** in Supabase (done).
-  - [x] **Cheaper news source (commit b2c8f13).** Swapped Claude web_search (per-
-    search fee, ~$5/run) for CryptoPanic free-tier headlines + a cheap classify
-    model (default `claude-haiku-4-5`, override via `AGENT4_MODEL`). No-headline
-    coins skip the model call (free); web search no longer required on the account.
+  - [x] **Cheaper news source (commits b2c8f13, 8c7e5dd).** Swapped Claude
+    web_search (~$5/run) for **free keyless crypto-news RSS** (Cointelegraph,
+    CoinDesk, Decrypt, CryptoSlate; CryptoPanic's free tier was discontinued Apr
+    2026, and the other free news APIs now require paid keys). Feeds fetched once
+    per batch, filtered per coin, classified by a cheap model (`claude-haiku-4-5`,
+    override `AGENT4_MODEL`). No-match coins skip the model call (free). No news API
+    key needed; override feeds via `AGENT4_RSS_FEEDS`.
   - [x] **Freshness regression fixed (commit 5d0c716).** Adding Agent 4 pushed the
     pipeline past the Vercel function time limit; since persistence was the LAST
     step and Vercel SIGKILLs on timeout (no background continuation, no Sentry), the
@@ -26,12 +29,11 @@ Tracked follow-ups for the sentics platform.
     append snapshots). Small batches fit even a low function limit. Refresh button
     is now fire-and-forget + polls `/api/candidates` (no more connection-error).
   - [ ] **SETUP before next run:** (a) run **migration 005** (adds
-    `directional_score`); (b) set **`CRYPTOPANIC_API_KEY`** (free signup) on the
-    backend env — without it FA is neutral (no-op, no cost); (c) set
-    **`AGENTS_SELF_URL`** on the backend env to its own public URL (default
-    `https://sentics-agents.vercel.app`) so Stage 1 triggers Stage 2 and batches
-    self-chain. Verify the chain runs (`fa_snapshots` row count grows in batches;
-    catalysts appear in the drawer over ~1-2 min).
+    `directional_score`); (b) set **`AGENTS_SELF_URL`** on the backend env to its
+    own public URL (default `https://sentics-agents.vercel.app`) so Stage 1 triggers
+    Stage 2 and batches self-chain. (No news API key needed — RSS is keyless.)
+    Verify the chain runs (`fa_snapshots` row count grows in batches; catalysts
+    appear in the drawer over ~1-2 min).
   - [ ] **FA backtest (accumulate-forward):** once enough daily `fa_snapshots`
     accrue (~weeks–months), extend `backtest.py` to join stored fa_scores with
     recomputed TA + forward returns; calibrate `FA_WEIGHT` and decide whether FA may
