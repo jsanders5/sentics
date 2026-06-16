@@ -10,11 +10,10 @@ type ResponseData = {
 /**
  * POST /api/run-pipeline
  *
- * Same-origin proxy that triggers the Python agent pipeline on the backend
- * (sentics-agents). Keeps the backend URL server-side and avoids browser CORS.
- *
- * The pipeline is long-running (CoinGecko + Claude calls), so this can take a
- * while; the client should show a pending state.
+ * Fire-and-forget proxy: dispatches the backend pipeline (Stage 1) and returns
+ * immediately, rather than waiting for the long run to finish (which timed the
+ * client out before). The backend persists a freshness floor early and the FA
+ * stage self-chains; the UI polls /api/candidates to reflect progress.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -27,29 +26,29 @@ export default async function handler(
   const backend =
     process.env.AGENTS_API_URL?.replace(/\/$/, "") || "https://sentics-agents.vercel.app";
 
+  // Dispatch the run but don't wait for it to complete. We allow a few seconds to
+  // ensure the request reaches the backend (so the function is invoked), then
+  // abort the wait — the backend keeps running independently.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
   try {
-    const upstream = await fetch(`${backend}/api/run-pipeline?trigger_type=manual`, {
+    await fetch(`${backend}/api/run-pipeline?trigger_type=manual`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-    });
-
-    const data = await upstream.json().catch(() => ({}));
-
-    if (!upstream.ok) {
-      return res.status(upstream.status).json({
-        status: "error",
-        error: data?.error || `Pipeline backend returned ${upstream.status}`,
-      });
-    }
-
-    return res.status(200).json({
-      status: data?.status || "success",
-      message: data?.message,
-      run_id: data?.run_id,
+      signal: controller.signal,
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed to reach pipeline backend";
-    console.error("[run-pipeline proxy] error:", msg);
-    return res.status(502).json({ status: "error", error: msg });
+    // AbortError is expected (we stopped waiting); anything else we log but still
+    // report "started" because the request was very likely dispatched.
+    if (!(err instanceof Error && err.name === "AbortError")) {
+      console.error("[run-pipeline proxy] dispatch note:", err);
+    }
+  } finally {
+    clearTimeout(timer);
   }
+
+  return res.status(202).json({
+    status: "started",
+    message: "Pipeline started. Data will refresh as it completes.",
+  });
 }

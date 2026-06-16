@@ -35,20 +35,47 @@ export default function DashboardPage() {
   const handleRefresh = async () => {
     setRefreshing(true);
     setToast(null);
+    const before = timestamp;
     try {
       const res = await fetch("/api/run-pipeline", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.status === "error") {
-        throw new Error(data.error || `Pipeline failed (${res.status})`);
+      if (!res.ok && res.status !== 202) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Couldn't start the run (${res.status})`);
       }
-      await refetch();
-      setToast({ type: "success", text: data.message || "Pipeline complete — data refreshed." });
     } catch (e) {
-      setToast({ type: "error", text: e instanceof Error ? e.message : "Refresh failed." });
-    } finally {
       setRefreshing(false);
+      setToast({ type: "error", text: e instanceof Error ? e.message : "Couldn't start the run." });
       setTimeout(() => setToast(null), 6000);
+      return;
     }
+    setToast({ type: "success", text: "Run started — data refreshes as it completes." });
+
+    // The run is async (TA persists fast; FA enriches in self-chaining batches).
+    // Poll the candidates timestamp; when it advances, refresh the UI.
+    const deadline = Date.now() + 4 * 60 * 1000;
+    const poll = async () => {
+      try {
+        const r = await fetch("/api/candidates");
+        const d = await r.json();
+        if (d.timestamp && d.timestamp !== before) {
+          await refetch();
+          setRefreshing(false);
+          setToast({ type: "success", text: "Data updated. Catalysts may keep filling in for a minute." });
+          setTimeout(() => setToast(null), 6000);
+          return;
+        }
+      } catch {
+        /* transient — keep polling */
+      }
+      if (Date.now() < deadline) {
+        setTimeout(poll, 20000);
+      } else {
+        setRefreshing(false);
+        setToast({ type: "success", text: "Still processing — data will update shortly." });
+        setTimeout(() => setToast(null), 6000);
+      }
+    };
+    setTimeout(poll, 20000);
   };
 
   if (error && !loading) {
