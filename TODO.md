@@ -2,6 +2,26 @@
 
 Tracked follow-ups for the sentics platform.
 
+## Fundamental analysis (news/catalyst) — Agent 4
+
+- [x] **FA layer shipped (commit e945eff).** Agent 4 scans per-coin news via Claude
+  web_search → `fa_score` (sentiment×magnitude) + catalyst/summary/sources; blended
+  into conviction (agreement strengthens, opposition weakens; does NOT flip the TA
+  direction yet). Append-only `fa_snapshots` logs a point-in-time read each run.
+  - [ ] **Run migration 004** in Supabase before the next pipeline run (adds
+    `fa_snapshots` + FA columns on `candidates`), else the upsert/snapshot fail.
+  - [ ] **Env:** the Anthropic account must have the **web_search tool enabled**;
+    `AGENT4_MODEL` overrides the model (default claude-sonnet-4-6). If web search
+    isn't available, FA degrades to neutral (no-op) — verify on first run.
+  - [ ] **Watch pipeline runtime/cost:** Agent 4 adds ~25 web-search + LLM calls per
+    run (concurrent). Confirm it stays under the Vercel maxDuration (300s) and the
+    cost is acceptable; if not, scope FA to directional candidates only.
+  - [ ] **FA backtest (accumulate-forward):** once enough daily `fa_snapshots`
+    accrue (~weeks–months), extend `backtest.py` to join stored fa_scores with
+    recomputed TA + forward returns; calibrate `FA_WEIGHT` and decide whether FA may
+    flip direction. (Or buy a point-in-time sentiment archive to backtest now.)
+  - [ ] **Surface FA on the card** (currently drawer-only) once it's proven useful.
+
 ## Trade plans (priority)
 
 - [x] **Compliance review of trade plans — code/copy fixes DONE (commit 3129d31).**
