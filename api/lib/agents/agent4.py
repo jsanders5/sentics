@@ -190,6 +190,12 @@ def run(agent2_result: Dict) -> Dict:
     log_info(f"Agent 4 starting: news/catalyst FA for {len(candidates)} coins")
 
     def score(c):
+        # Skip the (slow, paid) news scan for Neutral coins — there's no directional
+        # call to enrich. Cuts web-search cost and run time.
+        if c.get("direction", "Neutral") == "Neutral":
+            merged = {**c, **NEUTRAL_FA}
+            combine_ta_fa(merged)
+            return merged, True
         fa = _search_and_score(client, c.get("name", ""), c.get("symbol", "?"))
         merged = {**c, **fa}
         combine_ta_fa(merged)

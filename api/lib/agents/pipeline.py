@@ -68,30 +68,8 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "low_signal_environment": True
             }
 
-        # ============ AGENT 4: FUNDAMENTAL ANALYSIS (news/catalyst) ============
-        # Scans recent news per coin, scores a catalyst, and blends it into the
-        # TA conviction. Degrades gracefully (neutral FA) — never breaks the run.
-        log_info("Running Agent 4 (FA)...")
-        agent4_result = agent4.run(agent2_result)
-        agent2_result["candidates"] = agent4_result.get("candidates_with_fa", agent2_result["candidates"])
-
-        # ============ AGENT 3: AI SYNTHESIS ============
-        log_info("Running Agent 3...")
-        agent3_result = agent3.run(agent2_result)
-
-        if agent3_result["status"] != "success":
-            log_error(f"Agent 3 failed: {agent3_result.get('error')}")
-            # Fall back to previous candidates if available
-            agent3_result = {
-                "status": "partial",
-                "candidates_with_rationales": agent2_result.get("candidates", []),
-                "total_processed": len(agent2_result.get("candidates", [])),
-                "total_failed": 0
-            }
-
-        # Persist candidates to database
-        candidates_data = [
-            {
+        def _candidate_row(c):
+            return {
                 "symbol": c["symbol"],
                 "name": c["name"],
                 "category": c.get("category"),
@@ -116,34 +94,60 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "fa_confidence": c.get("fa_confidence"),
                 "fa_sources": c.get("fa_sources"),
             }
-            for c in agent3_result.get("candidates_with_rationales", [])
-        ]
 
-        if candidates_data:
-            insert_candidates(candidates_data)
-            # Prune rows that dropped out of the universe (e.g. stablecoins,
-            # coins no longer in the top 25) so the dashboard matches the run.
-            delete_candidates_except([c["symbol"] for c in candidates_data])
-
-            # Append-only point-in-time FA log (the leak-free backtest corpus).
-            fa_rows = [
-                {
-                    "symbol": c["symbol"], "name": c.get("name"),
-                    "price": c.get("price", 0),
-                    "fa_score": c.get("fa_score"), "sentiment": c.get("sentiment"),
-                    "magnitude": c.get("magnitude"), "catalyst": c.get("catalyst"),
-                    "fa_confidence": c.get("fa_confidence"), "fa_summary": c.get("fa_summary"),
-                    "fa_sources": c.get("fa_sources"),
-                }
-                for c in agent3_result.get("candidates_with_rationales", [])
-            ]
-            insert_fa_snapshots(fa_rows)
+        def _persist(candidates, fa_snapshot=False):
+            """Write candidates (upsert), prune dropped symbols, refresh freshness.
+            Called twice: a cheap TA 'floor' right after Agent 2, then the full
+            enriched write after FA + rationale — so a later timeout can't leave
+            the dashboard stale."""
+            rows = [_candidate_row(c) for c in candidates]
+            if not rows:
+                return
+            insert_candidates(rows)
+            delete_candidates_except([r["symbol"] for r in rows])
+            if fa_snapshot:
+                insert_fa_snapshots([
+                    {
+                        "symbol": c["symbol"], "name": c.get("name"), "price": c.get("price", 0),
+                        "fa_score": c.get("fa_score"), "sentiment": c.get("sentiment"),
+                        "magnitude": c.get("magnitude"), "catalyst": c.get("catalyst"),
+                        "fa_confidence": c.get("fa_confidence"), "fa_summary": c.get("fa_summary"),
+                        "fa_sources": c.get("fa_sources"),
+                    }
+                    for c in candidates
+                ])
             cache_set("candidates:latest", {
-                "timestamp": start_time.isoformat(),
-                "candidates": agent3_result.get("candidates_with_rationales", []),
-                "count": len(candidates_data)
+                "timestamp": start_time.isoformat(), "candidates": candidates, "count": len(rows),
             }, ttl_minutes=90)
             cache_set("last_update_ts", start_time.isoformat())
+
+        # ---- FRESHNESS FLOOR ----
+        # Persist the TA candidates immediately. The expensive steps below (Agent 4
+        # web search, Agent 3 rationale) can blow past the serverless time limit and
+        # get SIGKILL'd with no continuation — this guarantees the dashboard is fresh
+        # even if that happens; FA/rationale then enrich it when the run completes.
+        log_info("Persisting TA freshness floor...")
+        _persist(agent2_result["candidates"])
+
+        # ============ AGENT 4: FUNDAMENTAL ANALYSIS (news/catalyst) ============
+        log_info("Running Agent 4 (FA)...")
+        agent4_result = agent4.run(agent2_result)
+        agent2_result["candidates"] = agent4_result.get("candidates_with_fa", agent2_result["candidates"])
+
+        # ============ AGENT 3: AI SYNTHESIS (FA-aware rationale) ============
+        log_info("Running Agent 3...")
+        agent3_result = agent3.run(agent2_result)
+        if agent3_result["status"] != "success":
+            log_error(f"Agent 3 failed: {agent3_result.get('error')}")
+            agent3_result = {
+                "status": "partial",
+                "candidates_with_rationales": agent2_result.get("candidates", []),
+                "total_processed": len(agent2_result.get("candidates", [])),
+                "total_failed": 0,
+            }
+
+        # ---- FULL ENRICHED WRITE (TA + FA + rationale) + point-in-time snapshot ----
+        _persist(agent3_result.get("candidates_with_rationales", []), fa_snapshot=True)
 
         # Invalidate old cache if needed
         cache_invalidate("candidates:stale", "categories:stale")
