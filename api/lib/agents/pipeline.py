@@ -10,10 +10,10 @@ import uuid
 from datetime import datetime
 from typing import Dict
 from .utils import (
-    insert_candidates, delete_candidates_except, insert_pipeline_run,
-    cache_set, cache_invalidate, log_info, log_error
+    insert_candidates, delete_candidates_except, insert_fa_snapshots,
+    insert_pipeline_run, cache_set, cache_invalidate, log_info, log_error
 )
-from . import agent2, agent3
+from . import agent2, agent3, agent4
 
 def run_pipeline(trigger_type: str = "scheduled") -> Dict:
     """
@@ -68,6 +68,13 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "low_signal_environment": True
             }
 
+        # ============ AGENT 4: FUNDAMENTAL ANALYSIS (news/catalyst) ============
+        # Scans recent news per coin, scores a catalyst, and blends it into the
+        # TA conviction. Degrades gracefully (neutral FA) — never breaks the run.
+        log_info("Running Agent 4 (FA)...")
+        agent4_result = agent4.run(agent2_result)
+        agent2_result["candidates"] = agent4_result.get("candidates_with_fa", agent2_result["candidates"])
+
         # ============ AGENT 3: AI SYNTHESIS ============
         log_info("Running Agent 3...")
         agent3_result = agent3.run(agent2_result)
@@ -101,7 +108,13 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "rationale": c.get("rationale", ""),
                 "entry_type": c.get("entry_type", "Breakout"),
                 "entry_quality": c.get("entry_quality", "Moderate"),
-                "trade_plan": c.get("trade_plan")
+                "trade_plan": c.get("trade_plan"),
+                "fa_score": c.get("fa_score"),
+                "sentiment": c.get("sentiment"),
+                "catalyst": c.get("catalyst"),
+                "fa_summary": c.get("fa_summary"),
+                "fa_confidence": c.get("fa_confidence"),
+                "fa_sources": c.get("fa_sources"),
             }
             for c in agent3_result.get("candidates_with_rationales", [])
         ]
@@ -111,6 +124,20 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
             # Prune rows that dropped out of the universe (e.g. stablecoins,
             # coins no longer in the top 25) so the dashboard matches the run.
             delete_candidates_except([c["symbol"] for c in candidates_data])
+
+            # Append-only point-in-time FA log (the leak-free backtest corpus).
+            fa_rows = [
+                {
+                    "symbol": c["symbol"], "name": c.get("name"),
+                    "price": c.get("price", 0),
+                    "fa_score": c.get("fa_score"), "sentiment": c.get("sentiment"),
+                    "magnitude": c.get("magnitude"), "catalyst": c.get("catalyst"),
+                    "fa_confidence": c.get("fa_confidence"), "fa_summary": c.get("fa_summary"),
+                    "fa_sources": c.get("fa_sources"),
+                }
+                for c in agent3_result.get("candidates_with_rationales", [])
+            ]
+            insert_fa_snapshots(fa_rows)
             cache_set("candidates:latest", {
                 "timestamp": start_time.isoformat(),
                 "candidates": agent3_result.get("candidates_with_rationales", []),
@@ -144,6 +171,10 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                     "status": agent2_result.get("status"),
                     "duration_seconds": agent2_result.get("duration_seconds", 0)
                 },
+                "agent4": {
+                    "status": agent4_result.get("status"),
+                    "duration_seconds": agent4_result.get("duration_seconds", 0)
+                },
                 "agent3": {
                     "status": agent3_result.get("status"),
                     "duration_seconds": agent3_result.get("duration_seconds", 0)
@@ -151,6 +182,7 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
             },
             "summary": {
                 "candidates_discovered": agent2_result.get("total_candidates", 0),
+                "catalysts_found": agent4_result.get("total_processed", 0) - agent4_result.get("total_failed", 0),
                 "rationales_generated": agent3_result.get("total_processed", 0)
             }
         }

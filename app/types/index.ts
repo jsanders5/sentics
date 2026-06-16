@@ -53,6 +53,18 @@ export interface Candidate {
   rationale?: string;
   key_signals?: string[];
   trade_plan?: TradePlan;
+  // Fundamental analysis (news/catalyst) — Agent 4
+  fa_score?: number;        // sentiment × magnitude, [-1, 1]
+  sentiment?: number;       // [-1, 1]
+  catalyst?: string;        // short label, or "none"
+  fa_summary?: string;
+  fa_confidence?: ConfidenceTier;
+  fa_sources?: FaSource[];
+}
+
+export interface FaSource {
+  title?: string;
+  url: string;
 }
 
 export interface PipelineRun {

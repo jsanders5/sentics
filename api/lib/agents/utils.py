@@ -244,6 +244,12 @@ def insert_candidates(candidates: List[Dict]):
                 "entry_type": candidate.get("entry_type"),
                 "entry_quality": candidate.get("entry_quality"),
                 "trade_plan": candidate.get("trade_plan"),
+                "fa_score": candidate.get("fa_score"),
+                "sentiment": candidate.get("sentiment"),
+                "catalyst": candidate.get("catalyst"),
+                "fa_summary": candidate.get("fa_summary"),
+                "fa_confidence": candidate.get("fa_confidence"),
+                "fa_sources": candidate.get("fa_sources"),
                 "updated_at": datetime.utcnow().isoformat()
             }
 
@@ -259,6 +265,37 @@ def insert_candidates(candidates: List[Dict]):
     except Exception as e:
         sentry_sdk.capture_exception(e)
         raise
+
+def insert_fa_snapshots(rows: List[Dict]):
+    """APPEND point-in-time FA snapshots (one row per coin per run). Never upserts
+    — this is the immutable, leak-free corpus the FA backtest replays."""
+    if not rows:
+        return
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/fa_snapshots"
+        headers = get_supabase_headers()
+        payload = [
+            {
+                "symbol": r.get("symbol"),
+                "name": r.get("name"),
+                "price": r.get("price"),
+                "fa_score": r.get("fa_score"),
+                "sentiment": r.get("sentiment"),
+                "magnitude": r.get("magnitude"),
+                "catalyst": r.get("catalyst"),
+                "fa_confidence": r.get("fa_confidence"),
+                "fa_summary": r.get("fa_summary"),
+                "fa_sources": r.get("fa_sources"),
+            }
+            for r in rows
+        ]
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        log_info(f"Appended {len(payload)} FA snapshots")
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        log_error("Failed to append FA snapshots", e)
+
 
 def delete_candidates_except(symbols: List[str]):
     """Delete candidate rows whose symbol is NOT in the given list.

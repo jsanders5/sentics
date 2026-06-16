@@ -127,6 +127,12 @@ export default async function handler(
       entry_quality: c.entry_quality,
       key_signals: c.key_signals,
       trade_plan: c.trade_plan,
+      fa_score: typeof c.fa_score === 'number' ? c.fa_score : undefined,
+      sentiment: typeof c.sentiment === 'number' ? c.sentiment : undefined,
+      catalyst: c.catalyst,
+      fa_summary: c.fa_summary,
+      fa_confidence: c.fa_confidence,
+      fa_sources: c.fa_sources,
     }));
 
     return res.status(200).json({

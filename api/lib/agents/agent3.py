@@ -79,6 +79,16 @@ def build_prompt(candidate: Dict) -> str:
 
     entry_options = " | ".join(ENTRY_TYPES.get(direction, ENTRY_TYPES["Neutral"]))
 
+    catalyst = candidate.get("catalyst")
+    fa_summary = candidate.get("fa_summary")
+    if catalyst and catalyst != "none" and fa_summary:
+        fa_str = (
+            f"- Catalyst: {catalyst} (sentiment {candidate.get('sentiment')}, "
+            f"confidence {candidate.get('fa_confidence')})\n- {fa_summary}"
+        )
+    else:
+        fa_str = "- No significant news catalyst detected."
+
     return f"""You are a crypto market analyst. A technical model has already classified this
 asset. Write a rationale that explains and is fully consistent with that classification.
 
@@ -102,6 +112,9 @@ TECHNICAL INDICATORS:
 
 TRADE PLAN (reference these levels in your rationale; do NOT invent different ones):
 {plan_str}
+
+NEWS / CATALYST (fundamental analysis — weave in if present, don't overstate):
+{fa_str}
 
 PROVIDE OUTPUT IN THIS EXACT JSON FORMAT:
 {{
