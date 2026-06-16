@@ -74,7 +74,7 @@ export function CandidateDetailDrawer({
       )}
 
       <div
-        className={`fixed inset-y-0 right-0 z-50 w-full md:w-[420px] overflow-y-auto transition-transform duration-300 md:border-l ${
+        className={`fixed inset-y-0 right-0 z-50 w-full md:w-[480px] lg:w-[540px] overflow-y-auto transition-transform duration-300 md:border-l ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
         style={{ backgroundColor: 'var(--bg-surface)', borderLeftColor: 'var(--border)' }}
@@ -200,6 +200,20 @@ export function CandidateDetailDrawer({
               </p>
             </div>
           )}
+
+          {/* Scanned, but no notable catalyst (directional coins only — Neutral
+              coins aren't scanned, so they show nothing here). */}
+          {(!candidate.catalyst || candidate.catalyst === "none") &&
+            typeof candidate.fa_score === "number" && (
+              <div className="space-y-2 border-t border-[--border] pt-6">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">
+                  Catalyst / News
+                </h3>
+                <p className="text-sm text-[--text-muted] italic">
+                  No major news catalyst found in recent headlines.
+                </p>
+              </div>
+            )}
 
           {/* Technical Signals */}
           <div className="space-y-3 border-t border-[--border] pt-6">

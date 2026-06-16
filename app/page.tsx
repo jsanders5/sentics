@@ -48,34 +48,40 @@ export default function DashboardPage() {
       setTimeout(() => setToast(null), 6000);
       return;
     }
-    setToast({ type: "success", text: "Run started — data refreshes as it completes." });
+    setToast({ type: "success", text: "Run started — updating prices & technicals…" });
 
-    // The run is async (TA persists fast; FA enriches in self-chaining batches).
-    // Poll the candidates timestamp; when it advances, refresh the UI.
-    const deadline = Date.now() + 4 * 60 * 1000;
+    // The run is async: TA persists fast (timestamp advances, fa_score reset to
+    // null), then FA self-chains and fills fa_score in coin-by-coin. We derive
+    // progress from that — spinner + status stay until every directional coin is
+    // scanned (or the deadline).
+    const deadline = Date.now() + 6 * 60 * 1000;
+    const finish = (text: string) => {
+      setRefreshing(false);
+      setToast({ type: "success", text });
+      setTimeout(() => setToast(null), 6000);
+    };
     const poll = async () => {
       try {
         const r = await fetch("/api/candidates");
         const d = await r.json();
-        if (d.timestamp && d.timestamp !== before) {
-          await refetch();
-          setRefreshing(false);
-          setToast({ type: "success", text: "Data updated. Catalysts may keep filling in for a minute." });
-          setTimeout(() => setToast(null), 6000);
-          return;
+        const list: Candidate[] = d.candidates || [];
+        const taLanded = d.timestamp && d.timestamp !== before;
+        if (taLanded) {
+          await refetch(); // show fresh TA + any FA filled in so far
+          const directional = list.filter((c) => c.direction === "Bullish" || c.direction === "Bearish");
+          const scanned = directional.filter((c) => typeof c.fa_score === "number").length;
+          const total = directional.length;
+          if (total === 0) return finish("Data updated.");
+          if (scanned >= total) return finish(`Data updated — news analyzed for ${total} coins.`);
+          setToast({ type: "success", text: `Analyzing news… ${scanned}/${total} coins` });
         }
       } catch {
         /* transient — keep polling */
       }
-      if (Date.now() < deadline) {
-        setTimeout(poll, 20000);
-      } else {
-        setRefreshing(false);
-        setToast({ type: "success", text: "Still processing — data will update shortly." });
-        setTimeout(() => setToast(null), 6000);
-      }
+      if (Date.now() < deadline) setTimeout(poll, 10000);
+      else finish("Still processing — data will keep updating in the background.");
     };
-    setTimeout(poll, 20000);
+    setTimeout(poll, 8000);
   };
 
   if (error && !loading) {

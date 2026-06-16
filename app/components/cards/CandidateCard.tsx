@@ -66,9 +66,26 @@ export function CandidateCard({ candidate, index, bearishView, onSelect }: Candi
       </div>
 
       {/* Badges */}
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {candidate.confidence_tier && <ConfidenceBadge tier={candidate.confidence_tier} size="sm" />}
         {candidate.time_horizon && <HorizonBadge horizon={candidate.time_horizon} size="sm" />}
+        {candidate.catalyst && candidate.catalyst !== "none" && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium"
+            style={{
+              backgroundColor: "var(--bg-raised)",
+              borderColor: "var(--border)",
+              color: typeof candidate.sentiment === "number"
+                ? (candidate.sentiment > 0.05 ? "var(--bullish)"
+                  : candidate.sentiment < -0.05 ? "var(--bearish)" : "var(--text-secondary)")
+                : "var(--text-secondary)",
+            }}
+            title={`News catalyst: ${candidate.catalyst}`}
+          >
+            <span aria-hidden>📰</span>
+            <span className="max-w-[7rem] truncate">{candidate.catalyst}</span>
+          </span>
+        )}
       </div>
 
       {/* Trade plan summary */}
