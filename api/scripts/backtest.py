@@ -71,7 +71,10 @@ from lib.agents.utils import calculate_rsi  # noqa: E402
 DEFAULT_COINS = [
     "bitcoin", "ethereum", "solana", "ripple", "cardano",
     "dogecoin", "chainlink", "avalanche-2", "tron", "polkadot",
-    "litecoin", "stellar",
+    "litecoin", "stellar", "binancecoin", "bitcoin-cash", "uniswap",
+    "near", "aptos", "cosmos", "ethereum-classic", "monero",
+    "filecoin", "hedera-hashgraph", "internet-computer", "vechain",
+    "algorand", "tezos", "aave", "the-graph", "render-token", "arbitrum",
 ]
 HORIZON_BY_TF = {"Short": 7, "Medium": 30, "Long": 90}
 CG_BASE = "https://api.coingecko.com/api/v3"
@@ -229,6 +232,20 @@ def report(samples, fixed_horizon):
         by_tf[s["timeframe"]].append(s)
     for tf in ("Short", "Medium", "Long"):
         print("  " + _summary(tf, by_tf.get(tf, [])))
+
+    # Sub-period / regime check: all coins share the same 365d window, so the
+    # evaluation index maps to roughly the same calendar date across coins.
+    # Splitting by index terciles ~ thirds of the window — reveals whether edge
+    # is regime-dependent (a momentum model should have edge in trending thirds,
+    # not chop).
+    print("\nBy sub-period (index terciles ≈ oldest→newest thirds of the window):")
+    idxs = [s["index"] for s in directional]
+    if idxs:
+        lo, hi = min(idxs), max(idxs)
+        span = max(1, (hi - lo) / 3)
+        for k, name in enumerate(("early", "mid", "late")):
+            chunk = [s for s in directional if min(2, int((s["index"] - lo) / span)) == k]
+            print("  " + _summary(name, chunk))
 
     if neutral:
         mean_abs = sum(abs(s["forward_return"]) for s in neutral) / len(neutral)

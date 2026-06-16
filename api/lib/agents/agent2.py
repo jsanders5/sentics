@@ -71,7 +71,10 @@ DIR_THRESHOLD = 20.0       # |directional_score| >= 20 → directional, else Neu
 # rather than pure magnitude. See api/scripts/backtest.py.
 CONV_MAG_LO, CONV_MAG_HI = 50.0, 85.0    # magnitude base band (alone can't earn the top)
 CONV_NEU_HI = 20.0                       # neutral band ceiling (< directional floor)
-AGREEMENT_BONUS = {"High": 3.0, "Medium": 0.0, "Low": -18.0}  # agreement carries the OOS signal
+# Across 12- AND 30-coin backtests, Low-confidence calls are consistently worse,
+# so they get penalized. A High *reward* did NOT hold up on the larger sample
+# (High edge went negative), so High gets no bonus — only Low is acted on.
+AGREEMENT_BONUS = {"High": 0.0, "Medium": 0.0, "Low": -18.0}
 VOL_BUMP = 5.0
 VOL_CONFIRM = 1.3
 
