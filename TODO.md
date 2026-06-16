@@ -54,19 +54,31 @@ Verified: calibration matched the spec, end-to-end invariants held, tsc/py_compi
     Low-confidence calls are reliably bad (−6.8% edge), High/Medium ~flat.
   - **Done (commit 54aa0f5):** conviction recalibrated to magnitude-base + agreement
     (Low penalty); corr → −0.017, stable OOS; Low now ranks ~40 vs Medium ~67/High 76.
+  - **30-coin / 1257-sample run (commit d1b37ff):**
+    - **Regime dependence is the dominant effect.** Sub-period edge: early +3.3%
+      (hit 60%), mid +2.5% (hit 57%), late −5.3% (hit 35%). The momentum model has
+      real edge in trending thirds and inverts in chop.
+    - The smaller sample's "High > Medium > Low" did **not** hold — High went
+      negative (−4.3%). Removed the overfit High bonus; kept the Low penalty
+      (Low is worse in both runs). Conviction magnitude still non-predictive.
   - **Still open / honest caveats:**
-    - Conviction is still not *positively* predictive — the directional model's edge
-      is ~0 on the last 365d (a likely choppy/mean-reverting regime for a momentum
-      model). Don't overfit one window.
-    - Validate across **multiple market regimes / longer history** before trusting
-      the constants. Free tier caps daily history ~365d → needs a paid key or
-      stitched windows for multi-year.
+    - Conviction is not *positively* predictive — and the larger run shows the
+      directional model's edge is **regime-gated**, not absent. Don't overfit one
+      window.
+    - Validate across **multiple market regimes / longer history** — free tier caps
+      daily history ~365d → needs a paid key or stitched windows for multi-year.
     - Add **path-dependent trade-plan eval** (did target hit before stop?) +
       transaction costs for a truer read.
-    - Bigger question this raises: does the **directional model** itself need a
-      regime filter (momentum works in trends, not chop)? That's a model-design
-      item, not just constant tuning.
     - Still overlaps with OHLC/ATR (#2) for the volatility/stop constants.
+
+- [ ] **Regime filter for the directional model (NEW — highest-value lead).** The
+  backtest shows edge is strongly regime-dependent (positive in trending periods,
+  negative in chop) — a momentum model with no regime gate. Add a market/trend
+  regime indicator (e.g., BTC trend state, breadth, or per-coin trend-quality gate)
+  and only surface/▲rank directional calls when the regime supports them; suppress
+  or down-rank in chop. This is a model-design change, likely worth more than any
+  further constant tuning. Validate with the existing backtest harness
+  (sub-period + per-regime edge).
 
 ## Other known open items
 
