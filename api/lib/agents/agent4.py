@@ -1,44 +1,48 @@
 """
 Agent 4: Fundamental Analysis — news / catalyst layer.
 
-For each candidate, searches recent news via Claude's server-side web_search tool
-and extracts a structured catalyst read: net sentiment, magnitude, a catalyst
-label, a short summary, and sources. Produces `fa_score = sentiment * magnitude`
-in [-1, +1], which the pipeline BLENDS with the TA directional score.
+For each candidate, fetches recent headlines from a cheap crypto news API
+(CryptoPanic, free tier) and has a small/cheap model classify them into a
+structured catalyst read: net sentiment, magnitude, a catalyst label, a short
+summary, and sources. Produces `fa_score = sentiment * magnitude` in [-1, +1],
+which the pipeline BLENDS with the TA directional score.
 
-Point-in-time integrity (accumulate-forward): the news is assessed against the web
-as it exists AT RUN TIME and frozen into a daily snapshot. That snapshot — not a
-future re-search — is the leak-free record the FA backtest replays. So this is
-honest for forward accumulation even though live web search isn't reproducible.
+Why a news API + classify (not Claude's web_search tool): web_search carries a
+per-search fee (a run cost ~$5); fetching headlines from a free API and feeding
+them to a cheap model removes that fee entirely, and the API's publish timestamps
+are better for point-in-time integrity. Swap the source by replacing fetch_news().
+
+Point-in-time integrity (accumulate-forward): headlines are read AT RUN TIME and
+frozen into a daily snapshot — the leak-free record the FA backtest replays.
 
 Design choices:
-  - Concurrent, with graceful degradation: any failure → neutral FA (fa_score 0),
-    never drops the candidate or breaks the pipeline.
+  - Concurrent, with graceful degradation: no key / no headlines / any failure →
+    neutral FA (fa_score 0); never drops the candidate or breaks the pipeline. If
+    a coin has no headlines we skip the model call entirely (zero cost).
   - Conservative blend: FA modulates CONVICTION (agreement strengthens, opposition
-    weakens) but does NOT flip the TA-derived direction — that keeps the trade plan
-    (built on TA direction) consistent. The signed `combined_score` is stored so a
-    future, backtest-calibrated blend can do more.
-  - Robust JSON parsing (web_search emits citations, which are incompatible with
-    structured outputs, so we parse the JSON from the text ourselves).
+    weakens) but does NOT flip the TA-derived direction — keeps the trade plan
+    consistent. Signed `combined_score` is stored for a future calibrated blend.
 """
 
 import os
 import json
 import re
-import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional
 
 import anthropic
+import requests
 
 from .utils import log_info, log_error
 from .agent2 import compute_candidate_score
 
-AGENT4_MODEL = os.getenv("AGENT4_MODEL", "claude-sonnet-4-6")
+# Headline classification is a simple task → default to a cheap model (override
+# with AGENT4_MODEL, e.g. claude-sonnet-4-6 for higher quality).
+AGENT4_MODEL = os.getenv("AGENT4_MODEL", "claude-haiku-4-5")
 MAX_WORKERS = 4
 MAX_TOKENS = 1024
-MAX_PAUSE_CONTINUATIONS = 3
-WEB_SEARCH_TOOL = {"type": "web_search_20260209", "name": "web_search"}
+NEWS_LIMIT = 10
+CRYPTOPANIC_URL = "https://cryptopanic.com/api/v1/posts/"
 
 # Conservative, UN-CALIBRATED weight: how much a full-strength catalyst (|fa_score|=1)
 # adds to / subtracts from the TA magnitude (~[20,100]) when computing conviction.
@@ -52,15 +56,48 @@ NEUTRAL_FA = {
 }
 
 
-def build_prompt(name: str, symbol: str) -> str:
-    return f"""Search the web for recent (last ~7 days) news about the cryptocurrency {name} ({symbol})
-and assess whether there is a market-moving CATALYST. Use web search; base your
-assessment ONLY on what you actually find — do not speculate or rely on prior
-knowledge. If there is no notable news, say so (sentiment 0, catalyst "none").
+def fetch_news(symbol: str, limit: int = NEWS_LIMIT) -> List[Dict]:
+    """Recent headlines for a coin from CryptoPanic (free tier). Returns [] if no
+    CRYPTOPANIC_API_KEY is set or the request fails (→ neutral FA, no model call).
+    Swap this function to change the news source."""
+    token = os.getenv("CRYPTOPANIC_API_KEY")
+    if not token:
+        return []
+    try:
+        resp = requests.get(CRYPTOPANIC_URL, params={
+            "auth_token": token,
+            "currencies": symbol,
+            "kind": "news",
+            "public": "true",
+            "regions": "en",
+        }, timeout=15)
+        resp.raise_for_status()
+        results = resp.json().get("results", [])[:limit]
+        return [
+            {"title": r.get("title", ""), "url": r.get("url", ""),
+             "published_at": r.get("published_at", "")}
+            for r in results if r.get("title")
+        ]
+    except Exception as e:  # noqa: BLE001
+        log_error(f"News fetch failed for {symbol}", e)
+        return []
 
-After searching, respond with ONLY a JSON object — no prose before or after:
+
+def build_prompt(name: str, symbol: str, headlines: List[Dict]) -> str:
+    lines = "\n".join(
+        f"- ({h.get('published_at','')}) {h.get('title','')}" for h in headlines
+    )
+    return f"""Below are recent news headlines about the cryptocurrency {name} ({symbol}).
+Assess whether they indicate a market-moving CATALYST. Base your assessment ONLY on
+these headlines — do not speculate or use prior knowledge. If they're routine or
+not material, say so (sentiment 0, catalyst "none").
+
+HEADLINES:
+{lines}
+
+Respond with ONLY a JSON object — no prose before or after:
 {{
-  "sentiment": <number -1.0..1.0, net bullish(+) / bearish(-) impact of the news>,
+  "sentiment": <number -1.0..1.0, net bullish(+) / bearish(-) impact>,
   "magnitude": <number 0.0..1.0, how market-moving the catalyst is>,
   "catalyst": "<short label, e.g. 'ETF flows', 'listing', 'hack', 'regulation', 'partnership', 'none'>",
   "confidence": "High|Medium|Low",
@@ -118,30 +155,28 @@ def parse_fa(text: str) -> Dict:
     }
 
 
-def _search_and_score(client: "anthropic.Anthropic", name: str, symbol: str) -> Dict:
-    """Run the web-search completion (handling pause_turn), parse, return FA dict.
+def _classify(client: "anthropic.Anthropic", name: str, symbol: str, headlines: List[Dict]) -> Dict:
+    """Classify provided headlines into a structured FA read (no web search).
     Returns NEUTRAL_FA on any failure — never raises."""
     try:
-        messages = [{"role": "user", "content": build_prompt(name, symbol)}]
-        message = None
-        for _ in range(MAX_PAUSE_CONTINUATIONS + 1):
-            message = client.messages.create(
-                model=AGENT4_MODEL,
-                max_tokens=MAX_TOKENS,
-                tools=[WEB_SEARCH_TOOL],
-                messages=messages,
-            )
-            if getattr(message, "stop_reason", None) != "pause_turn":
-                break
-            # Server tool hit the iteration cap — re-send to resume (no extra user msg)
-            messages.append({"role": "assistant", "content": message.content})
-
+        message = client.messages.create(
+            model=AGENT4_MODEL,
+            max_tokens=MAX_TOKENS,
+            messages=[{"role": "user", "content": build_prompt(name, symbol, headlines)}],
+        )
         text = _extract_text(message)
         if not text:
             return dict(NEUTRAL_FA)
-        return parse_fa(text)
+        fa = parse_fa(text)
+        # Fall back to the fetched headlines for sources if the model didn't echo any.
+        if not fa.get("fa_sources"):
+            fa["fa_sources"] = [
+                {"title": h.get("title", "")[:200], "url": h.get("url", "")[:500]}
+                for h in headlines[:3] if h.get("url")
+            ]
+        return fa
     except Exception as e:  # noqa: BLE001 — news layer must never break the pipeline
-        log_error(f"FA scoring failed for {symbol}", e)
+        log_error(f"FA classify failed for {symbol}", e)
         return dict(NEUTRAL_FA)
 
 
@@ -191,7 +226,11 @@ def score_candidates(candidates: List[Dict]) -> List[Dict]:
             m = {**c, **NEUTRAL_FA}
             combine_ta_fa(m)
             return m
-        fa = _search_and_score(client, c.get("name", ""), c.get("symbol", "?"))
+        headlines = fetch_news(c.get("symbol", "?"))
+        if not headlines:
+            fa = dict(NEUTRAL_FA)  # no key / no news → neutral, no model call (free)
+        else:
+            fa = _classify(client, c.get("name", ""), c.get("symbol", "?"), headlines)
         m = {**c, **fa}
         combine_ta_fa(m)
         if fa["catalyst"] != "none" or fa["fa_score"] != 0.0:
