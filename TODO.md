@@ -17,11 +17,18 @@ Tracked follow-ups for the sentics platform.
     run spent tokens but never wrote → dashboard stuck at the last pre-FA run, and
     the daily cron was failing too. Fix: persist a TA "freshness floor" right after
     Agent 2, then the full enriched write at the end; skip the FA scan for Neutral.
-  - [ ] **FA may still not land if Agent 4 times out the function** (floor only
-    guarantees TA freshness, not FA). Proper fix = make the run async / not bound to
-    one request: split FA into its own invocation/cron, or a background worker
-    (QStash/Inngest/queue), or raise/confirm the backend `maxDuration` (verify the
-    legacy-builds `config.maxDuration:300` is actually applied).
+  - [x] **Async split so FA lands reliably (commits 6254ae8, 0724354).** Pipeline
+    split into Stage 1 (`/api/run-pipeline`: TA + rationale + persist, then
+    fire-and-forget) and Stage 2 (`/api/run-fa?offset&batch`: FA in 5-coin
+    self-chaining batches that PATCH FA + re-blended conviction onto the rows +
+    append snapshots). Small batches fit even a low function limit. Refresh button
+    is now fire-and-forget + polls `/api/candidates` (no more connection-error).
+  - [ ] **SETUP before next run:** (a) run **migration 005** (adds
+    `directional_score`); (b) set **`AGENTS_SELF_URL`** on the backend
+    (sentics-agents) env to its own public URL (default
+    `https://sentics-agents.vercel.app`) so Stage 1 can trigger Stage 2 and batches
+    can self-chain. Verify the chain runs (watch logs / `fa_snapshots` row count
+    grows in batches; catalysts appear in the drawer over ~1-2 min).
   - [ ] **FA backtest (accumulate-forward):** once enough daily `fa_snapshots`
     accrue (~weeks–months), extend `backtest.py` to join stored fa_scores with
     recomputed TA + forward returns; calibrate `FA_WEIGHT` and decide whether FA may
