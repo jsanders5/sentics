@@ -12,7 +12,7 @@ import { isStale, STALE_HOURS } from "@/app/lib/freshness";
 import { Candidate, BearishView } from "@/app/types";
 
 export default function DashboardPage() {
-  const { candidates, loading, error, timestamp, refetch } = useCandidates();
+  const { candidates, loading, error, timestamp, faProgress, refetch } = useCandidates();
   const {
     filters,
     sortKey,
@@ -88,7 +88,7 @@ export default function DashboardPage() {
     return (
       <ErrorBoundary>
         <div className="flex h-screen flex-col" style={{ backgroundColor: 'var(--bg-base)' }}>
-          <Header timestamp={timestamp} onRefresh={handleRefresh} refreshing={refreshing} />
+          <Header timestamp={timestamp} onRefresh={handleRefresh} refreshing={refreshing} faProgress={faProgress} />
           <div className="flex flex-1 items-center justify-center p-6">
             <div className="max-w-md text-center space-y-4">
               <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>Unable to Load Data</h2>
@@ -114,7 +114,7 @@ export default function DashboardPage() {
   return (
     <ErrorBoundary>
       <div className="flex h-screen flex-col" style={{ backgroundColor: 'var(--bg-base)' }}>
-        <Header timestamp={timestamp} onRefresh={handleRefresh} refreshing={refreshing} />
+        <Header timestamp={timestamp} onRefresh={handleRefresh} refreshing={refreshing} faProgress={faProgress} />
 
         {/* Centered content column */}
         <div className="flex flex-1 flex-col overflow-hidden">
