@@ -94,6 +94,7 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "entry_quality": c.get("entry_quality", "Moderate"),
                 "trade_plan": c.get("trade_plan"),
                 "ohlc": c.get("ohlc"),
+                "tv_symbol": c.get("tv_symbol"),
                 "fa_score": c.get("fa_score"),
                 "sentiment": c.get("sentiment"),
                 "catalyst": c.get("catalyst"),

@@ -20,8 +20,8 @@ import time
 
 from .utils import (
     fetch_coingecko, fetch_market_chart, fetch_ohlc, aggregate_daily_ohlc,
-    calculate_rsi, calculate_moving_average, calculate_momentum, log_info, log_error,
-    cache_get, cache_set,
+    resolve_tv_symbol, calculate_rsi, calculate_moving_average, calculate_momentum,
+    log_info, log_error, cache_get, cache_set,
 )
 
 # Mini-chart: ~30 daily candles. CoinGecko /ohlc at 30 days returns 4-hourly
@@ -562,6 +562,7 @@ def run(*_args, **_kwargs) -> Dict:
                 key_signals = build_key_signals(direction, signals, rsi, volume_ratio)
                 trade_plan = compute_trade_plan(direction, price, prices, signals)
                 ohlc = aggregate_daily_ohlc(fetch_ohlc(coin_id, days=CHART_DAYS), limit=CHART_CANDLES)
+                tv_symbol = resolve_tv_symbol(symbol)
 
                 candidates.append({
                     "symbol": symbol,
@@ -581,6 +582,7 @@ def run(*_args, **_kwargs) -> Dict:
                     "key_signals": key_signals,
                     "trade_plan": trade_plan,
                     "ohlc": ohlc,
+                    "tv_symbol": tv_symbol,
                 })
 
                 log_info(f"  {symbol}: {direction} / {time_horizon} / {confidence_tier} (score {candidate_score})")

@@ -62,6 +62,7 @@ export interface Candidate {
   key_signals?: string[];
   trade_plan?: TradePlan;
   ohlc?: Candle[];          // ~30 daily candles for the card mini-chart
+  tv_symbol?: string;       // resolved TradingView symbol, e.g. "BINANCE:FETUSDT"
   // Fundamental analysis (news/catalyst) — Agent 4
   fa_score?: number;        // sentiment × magnitude, [-1, 1]
   sentiment?: number;       // [-1, 1]

@@ -70,7 +70,11 @@ export function CandidateCard({ candidate, index, bearishView, onSelect }: Candi
           chart (new tab). Stop propagation so it doesn't also open the drawer. */}
       {candidate.ohlc && candidate.ohlc.length > 0 && (
         <a
-          href={`https://www.tradingview.com/symbols/${encodeURIComponent(candidate.symbol.toUpperCase())}USD/`}
+          href={
+            candidate.tv_symbol
+              ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(candidate.tv_symbol)}`
+              : `https://www.tradingview.com/symbols/${encodeURIComponent(candidate.symbol.toUpperCase())}USD/`
+          }
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}

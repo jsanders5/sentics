@@ -5,6 +5,7 @@ Handles: API calls, database operations, caching, logging.
 
 import os
 import json
+import re
 import time
 import requests
 import redis
@@ -219,6 +220,62 @@ def fetch_ohlc(coin_id: str, days: int = 30) -> List:
         return []
 
 
+# TradingView symbol resolution: a bare ticker search returns same-ticker STOCKS
+# first (TON→Titon, FET→Forum Energy), so we filter to crypto spot pairs on major
+# exchanges and prefer USDT > USD and this exchange order.
+TV_SEARCH_URL = "https://symbol-search.tradingview.com/symbol_search/"
+TV_PREFERRED_EXCHANGES = ["BINANCE", "COINBASE", "BYBIT", "OKX", "KRAKEN", "BITSTAMP", "GEMINI", "KUCOIN"]
+TV_CACHE_TTL_MIN = 60 * 24 * 30  # ~30 days — ticker→TV-symbol mappings rarely change
+
+
+def resolve_tv_symbol(symbol: str) -> Optional[str]:
+    """Resolve a coin ticker to its TradingView 'EXCHANGE:SYMBOL' (e.g.
+    'BINANCE:FETUSDT') via TradingView's symbol search, filtered to crypto spot
+    USD/USDT pairs on major exchanges. Cached ~30 days (incl. a 'no match' result).
+    Returns None if unresolved — the caller falls back to the overview page.
+    Never raises: the chart link is non-essential."""
+    sym = (symbol or "").upper().strip()
+    if not sym:
+        return None
+    cache_key = f"tv_symbol:{sym}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached.get("tv")  # cached value may legitimately be None ("no match")
+
+    try:
+        resp = requests.get(
+            TV_SEARCH_URL,
+            params={"text": sym, "hl": 0, "lang": "en", "type": ""},
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Origin": "https://www.tradingview.com",
+                "Referer": "https://www.tradingview.com/",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        results = resp.json() or []
+    except Exception as e:  # noqa: BLE001 — transient failure: don't cache as "no match"
+        log_error(f"TradingView symbol resolve failed for {sym}", e)
+        return None
+
+    wanted = {f"{sym}USDT": 0, f"{sym}USD": 1}  # quote preference
+    best = None  # ((exchange_rank, quote_rank), "EX:SYM")
+    for r in results:
+        if r.get("type") != "spot":
+            continue
+        rsym = re.sub(r"<[^>]+>", "", r.get("symbol") or "")
+        ex = (r.get("exchange") or "").upper()
+        if rsym in wanted and ex in TV_PREFERRED_EXCHANGES:
+            rank = (TV_PREFERRED_EXCHANGES.index(ex), wanted[rsym])
+            if best is None or rank < best[0]:
+                best = (rank, f"{ex}:{rsym}")
+
+    tv = best[1] if best else None
+    cache_set(cache_key, {"tv": tv}, ttl_minutes=TV_CACHE_TTL_MIN)
+    return tv
+
+
 def aggregate_daily_ohlc(candles: List, limit: int = 30) -> List[Dict]:
     """Aggregate sub-daily CoinGecko OHLC ([ts_ms, o, h, l, c]) into daily candles
     (UTC): open = first of day, close = last, high/low = day extremes. Returns the
@@ -294,6 +351,7 @@ def insert_candidates(candidates: List[Dict]):
                 "entry_quality": candidate.get("entry_quality"),
                 "trade_plan": candidate.get("trade_plan"),
                 "ohlc": candidate.get("ohlc"),
+                "tv_symbol": candidate.get("tv_symbol"),
                 "fa_score": candidate.get("fa_score"),
                 "sentiment": candidate.get("sentiment"),
                 "catalyst": candidate.get("catalyst"),
