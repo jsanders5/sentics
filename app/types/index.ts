@@ -34,6 +34,14 @@ export interface TradePlan {
   levels: TradePlanLevels;
 }
 
+// One daily OHLC candle for the card mini-chart.
+export interface Candle {
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+}
+
 export interface Candidate {
   symbol: string;
   name: string;
@@ -53,6 +61,7 @@ export interface Candidate {
   rationale?: string;
   key_signals?: string[];
   trade_plan?: TradePlan;
+  ohlc?: Candle[];          // ~30 daily candles for the card mini-chart
   // Fundamental analysis (news/catalyst) — Agent 4
   fa_score?: number;        // sentiment × magnitude, [-1, 1]
   sentiment?: number;       // [-1, 1]

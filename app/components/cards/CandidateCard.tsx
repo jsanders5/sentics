@@ -6,6 +6,7 @@ import { DirectionBadge } from "@/app/components/shared/DirectionBadge";
 import { ConfidenceBadge } from "@/app/components/shared/ConfidenceBadge";
 import { HorizonBadge } from "@/app/components/shared/HorizonBadge";
 import { TradePlanCompact } from "@/app/components/trade/TradePlan";
+import { MiniCandlestick } from "@/app/components/charts/MiniCandlestick";
 import { formatPrice } from "@/app/lib/format";
 
 interface CandidateCardProps {
@@ -64,6 +65,13 @@ export function CandidateCard({ candidate, index, bearishView, onSelect }: Candi
       <div className="mt-4 font-mono text-2xl font-semibold text-[--text-primary]">
         {formatPrice(candidate.price)}
       </div>
+
+      {/* Mini candlestick — last ~30 daily candles */}
+      {candidate.ohlc && candidate.ohlc.length > 0 && (
+        <div className="mt-3" title="Last ~30 daily candles (OHLC)">
+          <MiniCandlestick candles={candidate.ohlc} />
+        </div>
+      )}
 
       {/* Badges */}
       <div className="mt-3 flex flex-wrap items-center gap-1.5">

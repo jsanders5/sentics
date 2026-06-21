@@ -19,10 +19,15 @@ import statistics
 import time
 
 from .utils import (
-    fetch_coingecko, fetch_market_chart, calculate_rsi,
-    calculate_moving_average, calculate_momentum, log_info, log_error,
+    fetch_coingecko, fetch_market_chart, fetch_ohlc, aggregate_daily_ohlc,
+    calculate_rsi, calculate_moving_average, calculate_momentum, log_info, log_error,
     cache_get, cache_set,
 )
+
+# Mini-chart: ~30 daily candles. CoinGecko /ohlc at 30 days returns 4-hourly
+# candles, which we aggregate to daily.
+CHART_DAYS = 30
+CHART_CANDLES = 30
 
 # Pure meme coins capped at Medium confidence regardless of signal strength
 # (elevated manipulation risk — consistent with the product disclaimer).
@@ -556,6 +561,7 @@ def run(*_args, **_kwargs) -> Dict:
                 technical_score = calculate_technical_score(volume_ratio, signals["trend_metric"], signals["mom_blend"])
                 key_signals = build_key_signals(direction, signals, rsi, volume_ratio)
                 trade_plan = compute_trade_plan(direction, price, prices, signals)
+                ohlc = aggregate_daily_ohlc(fetch_ohlc(coin_id, days=CHART_DAYS), limit=CHART_CANDLES)
 
                 candidates.append({
                     "symbol": symbol,
@@ -574,6 +580,7 @@ def run(*_args, **_kwargs) -> Dict:
                     "confidence_tier": confidence_tier,
                     "key_signals": key_signals,
                     "trade_plan": trade_plan,
+                    "ohlc": ohlc,
                 })
 
                 log_info(f"  {symbol}: {direction} / {time_horizon} / {confidence_tier} (score {candidate_score})")

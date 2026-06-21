@@ -196,6 +196,54 @@ def fetch_market_chart(coin_id: str, days: int = 30) -> Dict:
         sentry_sdk.capture_exception(e)
         raise
 
+def fetch_ohlc(coin_id: str, days: int = 30) -> List:
+    """Fetch OHLC candles for a coin (cached 12h).
+
+    CoinGecko /ohlc returns [[ts_ms, open, high, low, close], ...]; granularity is
+    automatic (4-hourly for the 2–30 day range). Returns [] on failure rather than
+    raising — the mini-chart is non-essential and must never break the pipeline.
+    """
+    try:
+        cache_key = f"ohlc:{coin_id}:{days}"
+        cached = cache_get(cache_key)
+        if cached:
+            return cached.get("ohlc", [])
+
+        data = fetch_coingecko(f"/coins/{coin_id}/ohlc", {"vs_currency": "usd", "days": days})
+        candles = data if isinstance(data, list) else []
+        if candles:
+            cache_set(cache_key, {"ohlc": candles}, ttl_minutes=720)
+        return candles
+    except Exception as e:  # noqa: BLE001 — mini-chart must not sink the run
+        log_error(f"OHLC fetch failed for {coin_id}", e)
+        return []
+
+
+def aggregate_daily_ohlc(candles: List, limit: int = 30) -> List[Dict]:
+    """Aggregate sub-daily CoinGecko OHLC ([ts_ms, o, h, l, c]) into daily candles
+    (UTC): open = first of day, close = last, high/low = day extremes. Returns the
+    last `limit` candles as [{"o","h","l","c"}, ...]."""
+    by_day: Dict[int, Dict] = {}
+    order: List[int] = []
+    for c in candles or []:
+        if not c or len(c) < 5:
+            continue
+        ts, o, h, l, cl = c[0], c[1], c[2], c[3], c[4]
+        if None in (ts, o, h, l, cl):
+            continue
+        day = int(ts // 86_400_000)  # ms → integer day index
+        if day not in by_day:
+            by_day[day] = {"o": o, "h": h, "l": l, "c": cl}
+            order.append(day)
+        else:
+            d = by_day[day]
+            d["h"] = max(d["h"], h)
+            d["l"] = min(d["l"], l)
+            d["c"] = cl  # last close seen that day
+    daily = [by_day[d] for d in order]
+    return daily[-limit:]
+
+
 def fetch_btc_dominance() -> float:
     """Fetch BTC dominance percentage (cached 12 hours)."""
     try:
@@ -245,6 +293,7 @@ def insert_candidates(candidates: List[Dict]):
                 "entry_type": candidate.get("entry_type"),
                 "entry_quality": candidate.get("entry_quality"),
                 "trade_plan": candidate.get("trade_plan"),
+                "ohlc": candidate.get("ohlc"),
                 "fa_score": candidate.get("fa_score"),
                 "sentiment": candidate.get("sentiment"),
                 "catalyst": candidate.get("catalyst"),
