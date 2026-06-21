@@ -66,11 +66,27 @@ export function CandidateCard({ candidate, index, bearishView, onSelect }: Candi
         {formatPrice(candidate.price)}
       </div>
 
-      {/* Mini candlestick — last ~30 daily candles */}
+      {/* Mini candlestick — last ~30 daily candles. Click → full TradingView
+          chart (new tab). Stop propagation so it doesn't also open the drawer. */}
       {candidate.ohlc && candidate.ohlc.length > 0 && (
-        <div className="mt-3" title="Last ~30 daily candles (OHLC)">
+        <a
+          href={`https://www.tradingview.com/chart/?symbol=${encodeURIComponent(`BINANCE:${candidate.symbol.toUpperCase()}USDT`)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          title={`Open ${candidate.symbol} chart on TradingView`}
+          aria-label={`Open ${candidate.symbol} chart on TradingView`}
+          className="group/chart relative mt-3 block rounded-md transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+        >
           <MiniCandlestick candles={candidate.ohlc} />
-        </div>
+          <span
+            className="pointer-events-none absolute right-1 top-1 flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium opacity-0 transition-opacity group-hover/chart:opacity-100"
+            style={{ backgroundColor: "var(--bg-raised)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
+          >
+            TradingView <span aria-hidden>↗</span>
+          </span>
+        </a>
       )}
 
       {/* Badges */}
