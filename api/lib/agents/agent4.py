@@ -31,6 +31,8 @@ import json
 import re
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
 from typing import Dict, List, Optional
 
 import anthropic
@@ -46,6 +48,12 @@ MAX_WORKERS = 4
 MAX_TOKENS = 1024
 NEWS_LIMIT = 8
 HTTP_UA = "Mozilla/5.0 (compatible; sentics-bot/1.0)"
+
+# A "catalyst" must be recent — drop feed items older than this so a stale article
+# (e.g. an evergreen/resurfaced post) can't drive today's sentiment. Override with
+# AGENT4_MAX_AGE_DAYS. Items with an unparseable/missing date are kept (rare; we
+# don't want to lose current news from a feed that omits dates).
+MAX_AGE_DAYS = int(os.getenv("AGENT4_MAX_AGE_DAYS", "7"))
 
 # Free, keyless crypto-news RSS feeds. Override with AGENT4_RSS_FEEDS (comma-sep).
 RSS_FEEDS = [
@@ -80,13 +88,28 @@ def _strip_html(s: str) -> str:
     return re.sub(r"<[^>]+>", " ", s or "").strip()
 
 
+def _parse_pubdate(s: str) -> Optional[datetime]:
+    """Parse an RSS pubDate (RFC 822, e.g. 'Mon, 20 Jan 2026 12:00:00 GMT') to an
+    aware UTC datetime, or None if absent/unparseable."""
+    if not s:
+        return None
+    try:
+        dt = parsedate_to_datetime(s)
+    except (TypeError, ValueError, IndexError):
+        return None
+    if dt is None:
+        return None
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+
 def fetch_news_feed() -> List[Dict]:
     """Fetch + parse all RSS feeds ONCE per run into a combined, deduped item list.
     Each item: {title, url, published_at, text, categories}. Returns [] on total
     failure (→ neutral FA). Swap RSS_FEEDS / this function to change sources."""
     feeds = os.getenv("AGENT4_RSS_FEEDS")
     feed_urls = [u.strip() for u in feeds.split(",")] if feeds else RSS_FEEDS
-    items, seen = [], set()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=MAX_AGE_DAYS)
+    items, seen, dropped_old = [], set(), 0
     for url in feed_urls:
         try:
             resp = requests.get(url, headers={"User-Agent": HTTP_UA}, timeout=15)
@@ -97,19 +120,27 @@ def fetch_news_feed() -> List[Dict]:
                 link = (it.findtext("link") or "").strip()
                 if not title or link in seen:
                     continue
+                pub = (it.findtext("pubDate") or "").strip()
+                dt = _parse_pubdate(pub)
+                if dt and dt < cutoff:
+                    dropped_old += 1  # stale article — not a current catalyst
+                    continue
                 seen.add(link)
                 desc = _strip_html(it.findtext("description") or "")
                 cats = " ".join((c.text or "") for c in it.findall("category"))
                 items.append({
                     "title": title, "url": link,
-                    "published_at": (it.findtext("pubDate") or "").strip(),
+                    "published_at": pub,
                     "desc": desc,
                     "text": f"{title} {desc} {cats}",
                     "categories": cats,
                 })
         except Exception as e:  # noqa: BLE001 — one bad feed shouldn't sink the rest
             log_error(f"RSS fetch failed for {url}", e)
-    log_info(f"Fetched {len(items)} news items from {len(feed_urls)} feeds")
+    log_info(
+        f"Fetched {len(items)} news items from {len(feed_urls)} feeds "
+        f"(dropped {dropped_old} older than {MAX_AGE_DAYS}d)"
+    )
     return items
 
 
