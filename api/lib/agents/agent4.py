@@ -36,7 +36,7 @@ from typing import Dict, List, Optional
 import anthropic
 import requests
 
-from .utils import log_info, log_error
+from .utils import log_info, log_error, cache_get, cache_set
 from .agent2 import compute_candidate_score
 
 # Headline classification is a simple task → default to a cheap model (override
@@ -59,6 +59,15 @@ RSS_FEEDS = [
 # adds to / subtracts from the TA magnitude (~[20,100]) when computing conviction.
 # A future FA backtest (accumulate-forward) should calibrate this.
 FA_WEIGHT = 25.0
+
+# The FA stage runs across several self-chaining serverless invocations (one per
+# batch). Caching the run's RSS snapshot in Redis on the first batch and reusing it
+# for the rest means EVERY coin in a run is scored against the SAME headlines — so
+# two coins referenced by one article (e.g. XLM and Canton in "From Stellar to
+# Canton") both see it — and preserves point-in-time integrity. run_pipeline
+# invalidates this key at the start of each run so every run fetches fresh.
+FEED_CACHE_KEY = "fa:feed_snapshot"
+FEED_CACHE_TTL_MIN = 30
 
 NEUTRAL_FA = {
     "fa_score": 0.0, "sentiment": 0.0, "magnitude": 0.0, "catalyst": "none",
@@ -94,6 +103,7 @@ def fetch_news_feed() -> List[Dict]:
                 items.append({
                     "title": title, "url": link,
                     "published_at": (it.findtext("pubDate") or "").strip(),
+                    "desc": desc,
                     "text": f"{title} {desc} {cats}",
                     "categories": cats,
                 })
@@ -103,41 +113,79 @@ def fetch_news_feed() -> List[Dict]:
     return items
 
 
+def get_feed_snapshot() -> List[Dict]:
+    """Return the run's shared RSS snapshot, fetching + caching on first use so all
+    FA batches in a run see the same headlines (see FEED_CACHE_KEY). Falls back to a
+    direct fetch if Redis is unavailable."""
+    cached = cache_get(FEED_CACHE_KEY)
+    if cached and isinstance(cached.get("items"), list) and cached["items"]:
+        log_info(f"Using cached news snapshot ({len(cached['items'])} items)")
+        return cached["items"]
+    feed = fetch_news_feed()
+    if feed:
+        cache_set(FEED_CACHE_KEY, {"items": feed}, ttl_minutes=FEED_CACHE_TTL_MIN)
+    return feed
+
+
 def headlines_for(symbol: str, name: str, feed: List[Dict], limit: int = NEWS_LIMIT) -> List[Dict]:
     """Filter the combined feed for items relevant to a coin: full name match
-    (case-insensitive) or symbol as a standalone token. Returns up to `limit`."""
+    (case-insensitive) or symbol as a standalone token (case-insensitive). Short
+    tickers (≤2 chars, e.g. CC) collide with stray uppercase tokens in unrelated
+    articles, so for those we require a full-name match and ignore bare-symbol
+    matching. Each result carries the description snippet for the classifier."""
     name_l = (name or "").lower().strip()
     sym = (symbol or "").upper().strip()
-    sym_re = re.compile(rf"\b{re.escape(sym)}\b") if sym else None
+    allow_sym = len(sym) >= 3
+    sym_re = re.compile(rf"\b{re.escape(sym)}\b", re.IGNORECASE) if allow_sym else None
     out = []
     for it in feed:
         text = it["text"]
-        if (name_l and len(name_l) >= 3 and name_l in text.lower()) or (sym_re and sym_re.search(text)):
-            out.append({"title": it["title"], "url": it["url"], "published_at": it["published_at"]})
+        name_hit = bool(name_l) and len(name_l) >= 3 and name_l in text.lower()
+        sym_hit = bool(sym_re) and sym_re.search(text)
+        if name_hit or sym_hit:
+            out.append({
+                "title": it["title"], "url": it["url"],
+                "published_at": it["published_at"], "snippet": it.get("desc", ""),
+            })
             if len(out) >= limit:
                 break
     return out
 
 
 def build_prompt(name: str, symbol: str, headlines: List[Dict]) -> str:
-    lines = "\n".join(
-        f"- ({h.get('published_at','')}) {h.get('title','')}" for h in headlines
-    )
-    return f"""Below are recent news headlines about the cryptocurrency {name} ({symbol}).
-Assess whether they indicate a market-moving CATALYST. Base your assessment ONLY on
-these headlines — do not speculate or use prior knowledge. If they're routine or
-not material, say so (sentiment 0, catalyst "none").
+    parts = []
+    for h in headlines:
+        entry = f"- ({h.get('published_at','')}) {h.get('title','')}"
+        snippet = (h.get("snippet", "") or "").strip()
+        if snippet:
+            entry += f"\n    {snippet[:300]}"
+        parts.append(entry)
+    lines = "\n".join(parts)
+    return f"""Below are recent news headlines (with snippets) about the cryptocurrency {name} ({symbol}).
+Assess their market-moving impact FOR {symbol} SPECIFICALLY.
+
+Rules:
+- Score sentiment from the perspective of {name} ({symbol}) as an asset — NOT the
+  broader crypto market or another project mentioned in the story.
+- A development that moves activity, partnerships, capital, or institutional support
+  AWAY from {name} (e.g. a partner migrating off {symbol}, an institution choosing a
+  competing chain) is BEARISH for {symbol}, even if it's bullish for crypto or
+  tokenization in general. Read each snippet carefully to tell which side {symbol} is on.
+- Base your assessment ONLY on these headlines/snippets — do not speculate or use
+  prior knowledge. If they're routine or immaterial, say so (sentiment 0, catalyst "none").
+- The `sentiment` number MUST agree with your `summary`: if the summary explains the
+  news is negative for {symbol}, sentiment must be negative; if positive, positive.
 
 HEADLINES:
 {lines}
 
 Respond with ONLY a JSON object — no prose before or after:
 {{
-  "sentiment": <number -1.0..1.0, net bullish(+) / bearish(-) impact>,
+  "sentiment": <number -1.0..1.0, net bullish(+) / bearish(-) impact FOR {symbol}>,
   "magnitude": <number 0.0..1.0, how market-moving the catalyst is>,
   "catalyst": "<short label, e.g. 'ETF flows', 'listing', 'hack', 'regulation', 'partnership', 'none'>",
   "confidence": "High|Medium|Low",
-  "summary": "<1-2 sentences citing the specific catalyst, or 'No significant catalyst.'>"
+  "summary": "<1-2 sentences citing the specific catalyst and why it's bullish/bearish for {symbol}, or 'No significant catalyst.'>"
 }}
 """
 
@@ -255,7 +303,7 @@ def score_candidates(candidates: List[Dict]) -> List[Dict]:
         return out
 
     client = anthropic.Anthropic(api_key=api_key, max_retries=3, timeout=120.0)
-    feed = fetch_news_feed()  # one fetch, shared across the batch
+    feed = get_feed_snapshot()  # shared across ALL batches in the run (cached)
 
     def score(c):
         # Skip Neutral coins — nothing to enrich.

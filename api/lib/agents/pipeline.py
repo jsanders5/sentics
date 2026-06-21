@@ -154,6 +154,9 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
         directional = sum(1 for c in agent2_result["candidates"]
                           if c.get("direction") in ("Bullish", "Bearish"))
         if directional:
+            # Drop any prior run's news snapshot so this run's FA batches all fetch
+            # + share a fresh point-in-time snapshot (see agent4.FEED_CACHE_KEY).
+            cache_invalidate(agent4.FEED_CACHE_KEY)
             log_info(f"Triggering FA stage for {directional} directional candidates...")
             trigger_async("/api/run-fa", {"offset": 0, "batch": FA_BATCH})
 

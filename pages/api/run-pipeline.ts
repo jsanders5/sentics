@@ -8,20 +8,28 @@ type ResponseData = {
 };
 
 /**
- * POST /api/run-pipeline
+ * GET | POST /api/run-pipeline
  *
  * Fire-and-forget proxy: dispatches the backend pipeline (Stage 1) and returns
  * immediately, rather than waiting for the long run to finish (which timed the
  * client out before). The backend persists a freshness floor early and the FA
  * stage self-chains; the UI polls /api/candidates to reflect progress.
+ *
+ * Accepts BOTH methods on purpose: Vercel cron jobs invoke the path with a GET
+ * (the daily scheduled run), while the dashboard Refresh button sends a POST.
+ * Rejecting GET here is what silently broke the scheduled run.
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ResponseData>
 ) {
-  if (req.method !== "POST") {
+  if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ status: "error", error: "Method not allowed" });
   }
+
+  // Honor the cron's ?trigger_type=scheduled; default to "manual" for the UI button.
+  const triggerType =
+    typeof req.query.trigger_type === "string" ? req.query.trigger_type : "manual";
 
   const backend =
     process.env.AGENTS_API_URL?.replace(/\/$/, "") || "https://sentics-agents.vercel.app";
@@ -32,7 +40,7 @@ export default async function handler(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 4000);
   try {
-    await fetch(`${backend}/api/run-pipeline?trigger_type=manual`, {
+    await fetch(`${backend}/api/run-pipeline?trigger_type=${encodeURIComponent(triggerType)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
