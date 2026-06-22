@@ -270,9 +270,95 @@ def report(samples, fixed_horizon):
         print(f"\ncorr(conviction, edge) = {corr:+.3f}  "
               f"(want clearly positive — higher conviction → higher edge)")
 
+    _baselines(directional)
     _bias_eval(directional)
     _regime_eval(directional)
     print("=" * 64)
+
+
+def _stats(returns):
+    """Per-trade mean/std/Sharpe-per-trade/%positive/t-stat for a return list."""
+    n = len(returns)
+    if n == 0:
+        return None
+    mean = sum(returns) / n
+    var = sum((r - mean) ** 2 for r in returns) / n if n > 1 else 0.0
+    std = math.sqrt(var)
+    sharpe = mean / std if std > 0 else float("nan")
+    t = mean / (std / math.sqrt(n)) if std > 0 else float("nan")
+    pos = sum(1 for r in returns if r > 0) / n
+    return {"n": n, "mean": mean, "std": std, "sharpe": sharpe, "t": t, "pos": pos}
+
+
+def _equity(returns_in_order):
+    """Compound an equal-weight, sequential book → (total_return, max_drawdown).
+    Approximate (sample horizons overlap) — an illustrative curve, not a live P&L."""
+    equity = peak = 1.0
+    mdd = 0.0
+    for r in returns_in_order:
+        equity *= (1 + r)
+        peak = max(peak, equity)
+        if peak > 0:
+            mdd = min(mdd, equity / peak - 1)
+    return equity - 1, mdd
+
+
+def _baselines(directional):
+    """The money question: does following the calls beat just holding (beta) and a
+    coin-flip (null), risk-adjusted? Normalizes each trade to a per-DAY return so
+    mixed 7/30/90d horizons are comparable, then compares three books over the SAME
+    samples:
+      • Strategy  — long Bullish, short Bearish (what the app implies you'd do)
+      • Buy&Hold  — long everything always (pure beta)
+      • Skill     — Strategy − Buy&Hold per trade (what the calls ADD over holding)
+    """
+    if not directional:
+        return
+
+    def per_day(s):
+        h = max(1, s["horizon"])
+        return (1 + s["forward_return"]) ** (1.0 / h) - 1  # geometric daily
+
+    strat = [per_day(s) * s["sign"] for s in directional]
+    hold = [per_day(s) for s in directional]                      # always long = beta
+    skill = [a - b for a, b in zip(strat, hold)]                  # strategy minus beta
+
+    chron = sorted(directional, key=lambda s: s["index"])
+    strat_chron = [per_day(s) * s["sign"] for s in chron]
+    hold_chron = [per_day(s) for s in chron]
+
+    print("\n" + "-" * 64)
+    print("BASELINES — does following the calls beat holding? (per-DAY returns)")
+    print("-" * 64)
+    print(f"  {'book':10} {'n':>5} {'mean/day':>9} {'Sharpe/tr':>10} {'%pos':>6} {'t-stat':>7}")
+    for label, rets in (("Strategy", strat), ("Buy&Hold", hold), ("Skill", skill)):
+        st = _stats(rets)
+        print(f"  {label:10} {st['n']:5d} {st['mean']*100:+8.3f}% {st['sharpe']:10.3f} "
+              f"{st['pos']*100:5.1f}% {st['t']:+7.2f}")
+
+    s_tot, s_mdd = _equity(strat_chron)
+    h_tot, h_mdd = _equity(hold_chron)
+    print("\n  Compounded (chronological, equal-weight, illustrative):")
+    print(f"    Strategy : total {s_tot*100:+8.1f}%   maxDD {s_mdd*100:6.1f}%")
+    print(f"    Buy&Hold : total {h_tot*100:+8.1f}%   maxDD {h_mdd*100:6.1f}%")
+
+    st_abs = _stats(strat)
+    sk = _stats(skill)
+    n_bull = sum(1 for s in directional if s["direction"] == "Bullish")
+    bull_pct = n_bull / len(directional) * 100
+    tilt = abs(bull_pct - 50)
+
+    # PRIMARY verdict = did the strategy make money in ABSOLUTE terms (vs 0)?
+    abs_v = ("significantly POSITIVE" if st_abs["t"] > 2 else
+             "significantly NEGATIVE" if st_abs["t"] < -2 else
+             "indistinguishable from zero")
+    print(f"\n  VERDICT (absolute return, vs 0): t-stat {st_abs['t']:+.2f} → {abs_v}.")
+    print(f"  vs Buy&Hold: Skill t-stat {sk['t']:+.2f}  (book is {bull_pct:.0f}% long).")
+    if tilt > 15 and s_tot < 0:
+        print("  ⚠ BEATING BUY&HOLD HERE IS A MIRAGE: the book is heavily one-sided in a "
+              "trending window, so 'Skill' is mostly being short in a down market (beta), "
+              "not timing. The strategy still LOST money in absolute terms.")
+    print("  (t>2 ≈ significant; mixed horizons/overlap → directional, not exact.)")
 
 
 def _bias_eval(directional):
