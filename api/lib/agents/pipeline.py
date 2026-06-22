@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict
 from .utils import (
     insert_candidates, delete_candidates_except, insert_fa_snapshots,
-    get_candidates, update_candidate_fa, trigger_async,
+    insert_call_snapshots, get_candidates, update_candidate_fa, trigger_async,
     insert_pipeline_run, cache_set, cache_invalidate, log_info, log_error
 )
 from . import agent2, agent3, agent4
@@ -148,7 +148,35 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
             }
 
         # Full TA + rationale write (FA is added later by the chunked FA stage).
-        _persist(agent3_result.get("candidates_with_rationales", []))
+        final_candidates = agent3_result.get("candidates_with_rationales", [])
+        _persist(final_candidates)
+
+        # ---- LIVE FORWARD-TRACKING LEDGER ----
+        # Append an immutable, point-in-time row per directional call (price/levels
+        # as shown now). eval_calls.py scores these against realized forward prices
+        # later — the leak-free ground truth for whether the calls have live edge.
+        run_ts = start_time.isoformat()
+        call_rows = []
+        for c in final_candidates:
+            if c.get("direction") not in ("Bullish", "Bearish"):
+                continue
+            plan = c.get("trade_plan") or {}
+            call_rows.append({
+                "run_ts": run_ts,
+                "symbol": c.get("symbol"),
+                "name": c.get("name"),
+                "direction": c.get("direction"),
+                "candidate_score": c.get("candidate_score"),
+                "confidence_tier": c.get("confidence_tier"),
+                "time_horizon": c.get("time_horizon"),
+                "directional_score": c.get("directional_score"),
+                "price": c.get("price"),
+                "entry": plan.get("entry"),
+                "target": plan.get("target"),
+                "stop": plan.get("stop"),
+                "fa_score": c.get("fa_score"),
+            })
+        insert_call_snapshots(call_rows)
 
         # ---- TRIGGER STAGE 2 (FA), fire-and-forget ----
         # FA (web search) is too slow to fit this invocation, so it runs as its own

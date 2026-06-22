@@ -452,6 +452,41 @@ def insert_fa_snapshots(rows: List[Dict]):
         log_error("Failed to append FA snapshots", e)
 
 
+def insert_call_snapshots(rows: List[Dict]):
+    """APPEND point-in-time trade-call snapshots (one row per directional call per
+    run). Never upserts — the immutable, leak-free ledger eval_calls.py replays to
+    measure live forward edge. Failure is non-fatal: it must not break the run."""
+    if not rows:
+        return
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/call_snapshots"
+        headers = get_supabase_headers()
+        payload = [
+            {
+                "run_ts": r.get("run_ts"),
+                "symbol": r.get("symbol"),
+                "name": r.get("name"),
+                "direction": r.get("direction"),
+                "candidate_score": r.get("candidate_score"),
+                "confidence_tier": r.get("confidence_tier"),
+                "time_horizon": r.get("time_horizon"),
+                "directional_score": r.get("directional_score"),
+                "price": r.get("price"),
+                "entry": r.get("entry"),
+                "target": r.get("target"),
+                "stop": r.get("stop"),
+                "fa_score": r.get("fa_score"),
+            }
+            for r in rows
+        ]
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        log_info(f"Appended {len(payload)} call snapshots")
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        log_error("Failed to append call snapshots", e)
+
+
 def delete_candidates_except(symbols: List[str]):
     """Delete candidate rows whose symbol is NOT in the given list.
 
