@@ -2,6 +2,34 @@
 
 Tracked follow-ups for the sentics platform.
 
+## Trust & validation (CURRENT FOCUS)
+
+The trade calls have **no demonstrated edge**, so the project is in **validation-first
+mode: do NOT tune scoring constants until live data says there's something to tune.**
+
+- [x] **Honest backtest baselines (commit 025aaf7).** `backtest.py` now reports
+  Strategy vs Buy&Hold vs Skill (per-day-normalized, risk-adjusted, drawdown) and
+  flags the "beats buy&hold" mirage when the book is one-sided in a trending window.
+  **Verdict (365d × 30 coins):** absolute return ~zero (t −0.62; compounded −22%,
+  −59% maxDD), conviction uncorrelated with edge (−0.025; High/85+ buckets negative),
+  apparent edge is being net-short in a down year (beta, not skill).
+- [x] **Live forward-tracking ledger (commit 996d6b7, migration 008 applied).**
+  Pipeline appends an immutable point-in-time row per directional call per run to
+  `call_snapshots`. `api/scripts/eval_calls.py` scores realized forward edge FROM THE
+  LEDGER ITSELF (joins each call to the same coin's later snapshot ~horizon days out
+  — no external API, no look-ahead).
+  - [ ] **Eval cadence:** first Short (7d) readings ~1 week after 2026-06-24; Medium
+    (30d) ~1 month; Long (90d) ~3 months. Run `python3 api/scripts/eval_calls.py
+    --horizon 7` (then `--horizon 30`) and judge **absolute** return + whether
+    signal-strength buckets rank. Treat <100 matured calls as provisional.
+- [x] **Screener reframe (commit 6861875).** UI reframed from "trade signals" to a
+  transparent technical screener: "Conviction"→"Signal strength" (explicitly not a
+  forecast/recommendation), "Trade Plan"→"Technical Levels", "AI Trading
+  Intelligence"→"Technical Screener", persistent framing line. Copy-only.
+- [ ] **Decide based on live evidence (weeks out):** if the ledger shows real edge,
+  resume calibration; if not, keep it a screener (and weigh retiring the 0–100 number
+  entirely). Multi-regime data still needs paid CoinGecko / stitched history.
+
 ## Fundamental analysis (news/catalyst) — Agent 4
 
 - [x] **FA layer shipped (commit e945eff).** Agent 4 scans per-coin news via Claude
@@ -28,12 +56,14 @@ Tracked follow-ups for the sentics platform.
     self-chaining batches that PATCH FA + re-blended conviction onto the rows +
     append snapshots). Small batches fit even a low function limit. Refresh button
     is now fire-and-forget + polls `/api/candidates` (no more connection-error).
-  - [ ] **SETUP before next run:** (a) run **migration 005** (adds
-    `directional_score`); (b) set **`AGENTS_SELF_URL`** on the backend env to its
-    own public URL (default `https://sentics-agents.vercel.app`) so Stage 1 triggers
-    Stage 2 and batches self-chain. (No news API key needed — RSS is keyless.)
-    Verify the chain runs (`fa_snapshots` row count grows in batches; catalysts
-    appear in the drawer over ~1-2 min).
+  - [x] **SETUP done:** migration 005 applied; `AGENTS_SELF_URL` set on the backend;
+    chain verified (TA lands in ~1 min, FA self-chains, catalysts appear in the
+    drawer). Migrations 006 (ohlc), 007 (tv_symbol), 008 (call_snapshots) also applied.
+  - [x] **Stale-news + coin-specific FA fixes (commit ef85a06).** Drop articles
+    older than `AGENT4_MAX_AGE_DAYS` (7); feed the model the article snippet (not just
+    titles); coin-specific prompt ("a partner moving AWAY is bearish for this coin",
+    score must match summary); one shared RSS snapshot per run across batches;
+    case-insensitive symbol match, short tickers (≤2 chars) require a name match.
   - [ ] **FA backtest (accumulate-forward):** once enough daily `fa_snapshots`
     accrue (~weeks–months), extend `backtest.py` to join stored fa_scores with
     recomputed TA + forward returns; calibrate `FA_WEIGHT` and decide whether FA may
@@ -53,17 +83,18 @@ Tracked follow-ups for the sentics platform.
     (the free status is the load-bearing IAA defense — a paid tier requires fresh
     review); Terms of Service + Privacy Policy live (limitation of liability, no
     warranty, arbitration; GDPR/cookie consent).
+  - [x] **Reframed the "AI Trading Intelligence" tagline** → "Technical Screener"
+    (commit 6861875; see Trust & validation above).
   - [ ] **Nice-to-have:** first-visit acknowledgment gate; maintain the 24-hour
-    coin-exclusion capability for rapid enforcement response; reconsider the
-    "AI Trading Intelligence" tagline.
+    coin-exclusion capability for rapid enforcement response.
 
-- [~] **Higher-precision price levels (OHLC) + ATR-based stops — DEFERRED.**
-  Decision: defer; do the backtest first and revisit only if stop placement is the
-  weak link. **Finding (verified live):** CoinGecko's free/demo tier has NO daily
-  OHLC — `/ohlc?days=30` returns 4-hour candles, `days≥90` returns 4-DAY candles,
-  and the demo key lacks `/ohlc/range?interval=daily`. So true daily ATR needs one
-  of: aggregate 4h→daily over ~30d (hybrid), a Binance-klines source, or CoinGecko
-  Pro. The current close-to-close volatility floor stays until then.
+- [~] **Higher-precision price levels (OHLC) + ATR-based stops — PARTIALLY DONE.**
+  **Mini-chart shipped (commit dff076e):** Agent 2 fetches CoinGecko `/ohlc` and
+  aggregates 4h→daily into ~30 daily candles (`utils.aggregate_daily_ohlc`), stored
+  in `ohlc` (migration 006) and rendered as a per-card SVG candlestick that links to
+  TradingView (resolved per-coin via search, migration 007, commit 6919bc8). So the
+  4h→daily aggregation now exists and could feed **ATR-based stops** — still deferred
+  pending the validation work; the close-to-close volatility floor stays until then.
 
 ## Scoring-model redesign — DONE (commit aa5e165)
 
@@ -127,6 +158,11 @@ Verified: calibration matched the spec, end-to-end invariants held, tsc/py_compi
       a directional bet that should be presented as such? This is a model-DESIGN
       question, not constant tuning.
     - Add path-dependent (target-vs-stop) evaluation alongside.
+    - **Update (2026-06):** hardened backtest baselines confirm no skill in the one
+      window (see Trust & validation). Net decision = **validation-first**: the live
+      `call_snapshots` ledger + `eval_calls.py` now accrue leak-free forward data;
+      revisit this design question once that data (ideally spanning a non-down regime)
+      can separate skill from beta. Reframed to a screener in the meantime.
 
 ## Other known open items
 
@@ -146,11 +182,16 @@ content/stop_reason handling, model env override). Remaining:
 
 ## Other known open items
 
-- [ ] **Refresh can time out on long runs.** `POST /api/run-pipeline` triggers the
-  pipeline synchronously; a full run (~25 CoinGecko + 25 Claude calls) can exceed
-  Vercel's function execution limit even though the run continues server-side.
-  Make the trigger fire-and-forget and have the UI poll for completion.
+- [x] **Refresh timeout fixed (commits 6254ae8, 0724354).** Trigger is now
+  fire-and-forget; the UI polls `/api/candidates` and shows an "Analyzing news…"
+  progress badge (commit efc6e94) for any in-flight run (cron or manual).
+
+- [x] **Scheduled cron fixed (commit ef85a06).** Vercel invokes cron paths with GET,
+  but `/api/run-pipeline` was POST-only (405'd every scheduled run) — so the daily
+  cron had never fired; data only stayed fresh via the manual button. Proxy now
+  accepts GET + POST and forwards `trigger_type`. NOTE: on the **Vercel Hobby** plan
+  the cron is once/day with loose timing (acceptable; no GitHub Action added).
 
 - [ ] **`run-pipeline` has no auth.** The endpoint is public, so anyone could
-  trigger expensive CoinGecko/Claude runs. Add a shared-secret guard (or similar)
-  before public launch.
+  trigger expensive CoinGecko/Claude runs (and now also the GET cron path). Add a
+  shared-secret guard (or similar) before public launch.
