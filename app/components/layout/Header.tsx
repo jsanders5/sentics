@@ -42,7 +42,7 @@ export function Header({ timestamp, onRefresh, refreshing, faProgress }: HeaderP
             </h1>
             <div className="hidden md:block w-px h-8" style={{ backgroundColor: 'var(--border)' }} />
             <p className="hidden md:block text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>
-              AI Trading Intelligence
+              Technical Screener · Top 25
             </p>
           </div>
 

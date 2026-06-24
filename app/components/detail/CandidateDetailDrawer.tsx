@@ -105,33 +105,34 @@ export function CandidateDetailDrawer({
               style={{ backgroundColor: directionBg, borderColor: directionBorder }}
             >
               <p className="text-xs font-semibold uppercase tracking-wider text-[--text-muted] mb-2">
-                Price Direction
+                Technical Reading
               </p>
               <DirectionBadge direction={candidate.direction} size="lg" />
               <p className="text-sm text-[--text-secondary] mt-3">
                 <span className="font-semibold text-[--text-primary]">
                   {Math.round(candidate.candidate_score)}/100
                 </span>{" "}
-                conviction in this {candidate.direction.toLowerCase()} reading
+                signal strength for this {candidate.direction.toLowerCase()} reading
               </p>
             </div>
           )}
 
-          {/* Horizon + Confidence + Conviction */}
+          {/* Horizon + Confidence + Signal strength */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex flex-wrap gap-2">
               {candidate.time_horizon && <HorizonBadge horizon={candidate.time_horizon} />}
               {candidate.confidence_tier && <ConfidenceBadge tier={candidate.confidence_tier} />}
             </div>
-            <ScoreRing score={candidate.candidate_score} size={64} label="Conviction" />
+            <ScoreRing score={candidate.candidate_score} size={64} label="Signal" />
           </div>
           <p className="text-xs text-[--text-muted] -mt-2">
-            <span className="font-semibold text-[--text-secondary]">Conviction</span> — signal strength of the
-            predicted direction. <span className="font-semibold text-[--text-secondary]">Confidence</span> — how
-            many indicators agree.
+            <span className="font-semibold text-[--text-secondary]">Signal strength</span> — how strongly the
+            indicators currently agree on the direction (a description of the indicators, not a forecast or a
+            recommendation). <span className="font-semibold text-[--text-secondary]">Confidence</span> — how many
+            indicators agree.
           </p>
 
-          {/* Trade Plan */}
+          {/* Technical Levels */}
           <TradePlanDetail plan={candidate.trade_plan} view={bearishView} />
 
           {/* Rationale */}

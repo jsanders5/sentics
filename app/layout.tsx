@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sentics — AI Trading Intelligence",
-  description: "AI-powered cryptocurrency trading analysis for the top 25 assets by market cap.",
+  title: "Sentics — Crypto Technical Screener",
+  description: "A transparent technical screener for the top 25 crypto assets by market cap. Indicator readings, not trade signals or advice.",
 };
 
 export default function RootLayout({

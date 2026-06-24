@@ -39,7 +39,7 @@ export function CandidateCard({ candidate, index, bearishView, onSelect }: Candi
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={handleKeyDown}
-      aria-label={`${candidate.name} (${candidate.symbol}), ${direction}, score ${candidate.candidate_score.toFixed(0)}. View details.`}
+      aria-label={`${candidate.name} (${candidate.symbol}), ${direction}, signal strength ${candidate.candidate_score.toFixed(0)}. View details.`}
       className="card card-interactive animate-card-in relative overflow-hidden"
       style={{ animationDelay: `${Math.min(index * 35, 420)}ms` }}
     >
@@ -56,8 +56,8 @@ export function CandidateCard({ candidate, index, bearishView, onSelect }: Candi
         </div>
         <ScoreRing
           score={candidate.candidate_score}
-          label="Conviction"
-          title="Conviction — signal strength of the predicted direction (0–100). Higher means the technical signals agree more strongly on the move, up or down."
+          label="Signal"
+          title="Signal strength (0–100) — how strongly the technical indicators currently agree on the direction. It describes the indicators, not a forecast or a recommendation, and does not predict returns."
         />
       </div>
 

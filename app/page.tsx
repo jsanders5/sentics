@@ -120,6 +120,12 @@ export default function DashboardPage() {
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="w-full max-w-7xl mx-auto flex flex-col flex-1 overflow-hidden">
 
+            <p className="px-4 md:px-6 pt-3 text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
+              A technical screener of the top 25 crypto assets — indicator readings and illustrative
+              price levels, <span className="font-semibold">not trade signals or advice</span>. Signal
+              strength reflects how strongly the indicators agree, not the odds of a profitable trade.
+            </p>
+
             {!loading && isStale(timestamp) && (
               <div
                 className="px-4 md:px-6 py-3 text-sm flex items-center gap-2"

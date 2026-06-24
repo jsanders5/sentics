@@ -27,7 +27,7 @@ function RiskReward({ rr }: { rr?: number | null }) {
 /** Compact one-line plan for cards. */
 export function TradePlanCompact({ plan, view }: { plan?: TradePlan; view: BearishView }) {
   if (!plan || plan.bias === "none") {
-    return <span className="text-xs text-[--text-muted]">No setup — wait for a signal</span>;
+    return <span className="text-xs text-[--text-muted]">No clear technical setup</span>;
   }
 
   const isSpotExit = plan.bias === "short" && view === "spot";
@@ -85,7 +85,7 @@ export function TradePlanDetail({ plan, view }: { plan?: TradePlan; view: Bearis
   if (plan.bias === "none") {
     return (
       <div className="space-y-2 border-t border-[--border] pt-6">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">Trade Plan</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">Technical Levels</h3>
         <p className="text-sm text-[--text-secondary]">{plan.summary}</p>
       </div>
     );
@@ -97,8 +97,8 @@ export function TradePlanDetail({ plan, view }: { plan?: TradePlan; view: Bearis
   const title = isSpotExit
     ? "Bearish · Exit / Avoid"
     : isShort
-    ? "Trade Plan · Short"
-    : "Trade Plan · Long";
+    ? "Technical Levels · Short"
+    : "Technical Levels · Long";
 
   const entryLabel = isSpotExit ? "Bearish trigger" : "Entry";
   const targetLabel = isSpotExit ? "Downside target" : isShort ? "Cover target" : "Target";
