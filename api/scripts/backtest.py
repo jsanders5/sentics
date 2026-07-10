@@ -150,7 +150,18 @@ def conviction_bucket(c):
     return "85+"
 
 
-def run_backtest(coins, days, stride, fixed_horizon, cache_dir, refresh, sleep):
+def _augment(dscore, fib, weight):
+    """Fib-augmented direction/score: add weight×fib (fib in [-1,1]) to the raw
+    directional_score, then re-threshold. Returns (direction, augmented_score)."""
+    aug = max(-100.0, min(100.0, dscore + weight * fib))
+    if aug >= A.DIR_THRESHOLD:
+        return "Bullish", aug
+    if aug <= -A.DIR_THRESHOLD:
+        return "Bearish", aug
+    return "Neutral", aug
+
+
+def run_backtest(coins, days, stride, fixed_horizon, cache_dir, refresh, sleep, fib_weight=0.0):
     samples = []
 
     # Precompute the market regime (from BTC) at each index for the regime filter.
@@ -190,6 +201,13 @@ def run_backtest(coins, days, stride, fixed_horizon, cache_dir, refresh, sleep):
                 fwd = (closes[i + horizon] - price) / price
                 sign = 1 if direction == "Bullish" else -1 if direction == "Bearish" else 0
                 market = btc_regime.get(i, "chop")
+
+                # Fibonacci (experimental): a standalone vote + a fib-augmented call.
+                fib = A.fib_signal(price, window)
+                aug_dir, aug_score = _augment(dscore, fib, fib_weight)
+                aug_sign = 1 if aug_dir == "Bullish" else -1 if aug_dir == "Bearish" else 0
+                fib_sign = 1 if fib > 0.2 else -1 if fib < -0.2 else 0
+
                 samples.append({
                     "coin": coin, "index": i, "direction": direction,
                     "confidence": confidence, "conviction": conviction,
@@ -198,6 +216,11 @@ def run_backtest(coins, days, stride, fixed_horizon, cache_dir, refresh, sleep):
                     "edge": round(fwd * sign, 6), "sign": sign,
                     "market": market,
                     "regime_ok": A.regime_allows(direction, market, signals),
+                    "fib": round(fib, 4),
+                    "aug_sign": aug_sign, "aug_edge": round(fwd * aug_sign, 6),
+                    "aug_conviction": (A.compute_candidate_score(aug_dir, aug_score, vr, confidence)
+                                       if aug_sign else 0),
+                    "fib_sign": fib_sign, "fib_edge": round(fwd * fib_sign, 6),
                 })
             tag = "cache" if from_cache else "fetched"
             print(f"  · {coin}: {n} closes ({tag})", file=sys.stderr)
@@ -421,6 +444,66 @@ def _regime_eval(directional):
         print("    " + _summary("test coins", test))
 
 
+def _skill_t(rows, signkey):
+    """Per-day Strategy-minus-BuyHold skill t-stat for a chosen direction column."""
+    book = [s for s in rows if s[signkey] != 0]
+    if len(book) < 2:
+        return float("nan"), 0
+    def per_day(s):
+        return (1 + s["forward_return"]) ** (1.0 / max(1, s["horizon"])) - 1
+    skill = [per_day(s) * s[signkey] - per_day(s) for s in book]  # strat − always-long
+    st = _stats(skill)
+    return st["t"], len(book)
+
+
+def fib_compare(samples, fib_weight):
+    """Honest side-by-side: does Fibonacci add edge over the current model, or is it
+    redundant with the trend term we already have?"""
+    base = [s for s in samples if s["sign"] != 0]
+    aug = [s for s in samples if s["aug_sign"] != 0]
+    fibo = [s for s in samples if s["fib_sign"] != 0]
+
+    print("\n" + "=" * 64)
+    print(f"FIBONACCI COMPARISON  (fib_weight={fib_weight} pts added to directional_score)")
+    print("=" * 64)
+    print("\n  book                          n   edge     hit   %long   skill-t(vs hold)")
+    for label, rows, sk in (("Baseline (current model)", base, "sign"),
+                             ("Fib-augmented", aug, "aug_sign"),
+                             ("Pure Fibonacci", fibo, "fib_sign")):
+        if rows:
+            edges = [r["forward_return"] * r[sk] for r in rows]
+            mean_e = sum(edges) / len(edges)
+            hit = sum(1 for x in edges if x > 0) / len(edges)
+            long_pct = sum(1 for r in rows if r[sk] == 1) / len(rows) * 100
+            t, n = _skill_t(samples, sk)
+            print(f"  {label:26} {len(rows):5}  {mean_e*100:+5.2f}%  {hit*100:4.1f}%  {long_pct:4.0f}%   {t:+.2f}")
+        else:
+            print(f"  {label:26}     0")
+
+    # Is fib just re-stating the trend, and does it track forward returns at all?
+    fib_vals = [s["fib"] for s in samples]
+    print("\n  corr(fib, directional_score) = "
+          f"{pearson(fib_vals, [s['directional_score'] for s in samples]):+.3f}  "
+          "(near ±1 ⇒ redundant with the trend term)")
+    print("  corr(fib, forward_return)    = "
+          f"{pearson(fib_vals, [s['forward_return'] for s in samples]):+.3f}  "
+          "(near 0 ⇒ no standalone predictive value)")
+    if aug:
+        print("  corr(aug_conviction, aug_edge) = "
+              f"{pearson([s['aug_conviction'] for s in aug], [s['aug_edge'] for s in aug]):+.3f}")
+
+    bt, _ = _skill_t(samples, "sign")
+    at, _ = _skill_t(samples, "aug_sign")
+    delta = at - bt
+    verdict = ("Fib IMPROVES skill-t" if delta > 0.5 else
+               "Fib HURTS skill-t" if delta < -0.5 else
+               "Fib makes ~no difference")
+    print(f"\n  VERDICT: skill-t {bt:+.2f} (baseline) → {at:+.2f} (augmented)  Δ={delta:+.2f} → {verdict}.")
+    print("  (Reminder: single down-year window; skill-t vs hold is beta-inflated when the book")
+    print("   is one-sided. Treat as a redundancy check, not proof of live edge.)")
+    print("=" * 64)
+
+
 def dump_samples(samples, path):
     cols = ["coin", "index", "direction", "confidence", "conviction",
             "directional_score", "timeframe", "horizon", "forward_return", "edge",
@@ -443,16 +526,21 @@ def main():
     ap.add_argument("--refresh", action="store_true", help="ignore cache, re-fetch")
     ap.add_argument("--cache-dir", default=DEFAULT_CACHE)
     ap.add_argument("--dump", default=None, help="write per-sample CSV to this path")
+    ap.add_argument("--fib", action="store_true", help="append the Fibonacci comparison report")
+    ap.add_argument("--fib-weight", type=float, default=20.0,
+                    help="points added to directional_score per unit fib_signal (default 20)")
     args = ap.parse_args()
 
     print(f"Backtesting {len(args.coins)} coins over {args.days}d (stride {args.stride}d); "
           f"cache={args.cache_dir}", file=sys.stderr)
     samples = run_backtest(args.coins, args.days, args.stride, args.horizon,
-                           args.cache_dir, args.refresh, args.sleep)
+                           args.cache_dir, args.refresh, args.sleep, args.fib_weight)
     if not samples:
         print("No samples produced.", file=sys.stderr)
         sys.exit(1)
     report(samples, args.horizon)
+    if args.fib:
+        fib_compare(samples, args.fib_weight)
     if args.dump:
         dump_samples(samples, args.dump)
 

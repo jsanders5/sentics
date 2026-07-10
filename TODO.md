@@ -26,6 +26,15 @@ mode: do NOT tune scoring constants until live data says there's something to tu
   transparent technical screener: "Conviction"→"Signal strength" (explicitly not a
   forecast/recommendation), "Trade Plan"→"Technical Levels", "AI Trading
   Intelligence"→"Technical Screener", persistent framing line. Copy-only.
+- [~] **Fibonacci levels tested — NO edge, not wired.** Added experimental
+  `fibonacci_levels` / `fib_signal` (golden-pocket-in-trend, flip beyond 0.786) to
+  `agent2.py` and a `backtest.py --fib` comparison. Result (365d × 30 coins):
+  `corr(fib, forward_return) = −0.003` (zero standalone predictive value); blending
+  it in moved skill-t +7.20→+7.22 (Δ+0.02, edge/hit slightly worse); it overlaps the
+  trend term (corr +0.32). "Pure fib +2.51% edge" is a beta mirage (only 29% long in
+  a down year). Kept experimental/not-wired. Untried variants if revisited: fib as
+  mean-reversion (bounce=reversal), or as trade-plan LEVELS rather than a directional
+  vote (wouldn't change directional edge but could affect R/R quality).
 - [ ] **Decide based on live evidence (weeks out):** if the ledger shows real edge,
   resume calibration; if not, keep it a screener (and weigh retiring the 0–100 number
   entirely). Multi-regime data still needs paid CoinGecko / stitched history.

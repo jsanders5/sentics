@@ -13,7 +13,7 @@ Agent 3 consumes this output to generate the narrative rationale; the
 direction / timeframe / confidence values here are the source of truth.
 """
 
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import math
 import statistics
 import time
@@ -501,6 +501,64 @@ def build_key_signals(direction: str, signals: Dict, rsi: float, volume_ratio: f
     if abs(signals["mom_7"]) >= 5:
         out.append(f"7-day momentum {signals['mom_7']:+.1f}%")
     return out
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Fibonacci retracement (EXPERIMENTAL — NOT wired into run(); evaluated by the
+# backtest before any production use, per the validation-first stance).
+# ──────────────────────────────────────────────────────────────────────────
+FIB_LOOKBACK = 90
+FIB_RATIOS = (0.236, 0.382, 0.5, 0.618, 0.786)
+FIB_GOLDEN_MID = 0.559  # midpoint of the 0.5–0.618 "golden pocket"
+
+
+def fibonacci_levels(prices: List[float], lookback: int = FIB_LOOKBACK) -> Optional[Dict]:
+    """Swing high/low over the lookback window and the retracement levels between
+    them. `trend` is which extreme is more recent ('up' = low then high). Returns
+    None on insufficient/degenerate data."""
+    if not prices or len(prices) < 10:
+        return None
+    window = prices[-lookback:] if len(prices) >= lookback else list(prices)
+    hi, lo = max(window), min(window)
+    if hi <= lo:
+        return None
+    hi_i = max(range(len(window)), key=lambda i: window[i])
+    lo_i = min(range(len(window)), key=lambda i: window[i])
+    trend = "up" if hi_i > lo_i else "down"
+    diff = hi - lo
+    levels = {r: (hi - diff * r) if trend == "up" else (lo + diff * r) for r in FIB_RATIOS}
+    return {"high": hi, "low": lo, "trend": trend, "levels": levels}
+
+
+def fib_signal(price: float, prices: List[float], lookback: int = FIB_LOOKBACK) -> float:
+    """A signed Fibonacci directional vote in [-1, 1] (EXPERIMENTAL).
+
+    Retail 'golden pocket' reading: trade in the swing-trend direction, strongest
+    when price has pulled back into the 0.5–0.618 zone; a break beyond the 0.786
+    retracement is treated as trend invalidation and FLIPS the bias.
+    """
+    fib = fibonacci_levels(prices, lookback)
+    if not fib:
+        return 0.0
+    hi, lo, trend = fib["high"], fib["low"], fib["trend"]
+    rng = hi - lo
+    if rng <= 0:
+        return 0.0
+    if trend == "up":
+        retr = (hi - price) / rng   # how far price pulled back down from the high
+        bias = 1.0
+    else:
+        retr = (price - lo) / rng   # how far price rallied up from the low
+        bias = -1.0
+    retr = max(0.0, min(1.2, retr))
+    if retr <= 0.236:                       # near the extreme — mild continuation
+        strength = 0.4
+    elif retr < 0.786:                      # pullback zone; peak in the golden pocket
+        strength = max(0.3, min(1.0, 1.0 - abs(retr - FIB_GOLDEN_MID) / 0.3))
+    else:                                   # beyond 0.786 → invalidation → flip
+        bias = -bias
+        strength = min(1.0, (retr - 0.786) / 0.214 + 0.4)
+    return round(bias * strength, 4)
 
 
 def run(*_args, **_kwargs) -> Dict:
