@@ -405,6 +405,30 @@ def update_candidate_fa(symbol: str, fields: Dict):
         log_error(f"Failed to update FA for {symbol}", e)
 
 
+def get_symbol_track_record(symbol: str, limit: int = 5) -> List[Dict]:
+    """Load this pipeline's own recent directional calls for one symbol (most
+    recent first). Used by the Agent 4 reconciliation tool so the model can check
+    whether its own history has been consistent or flip-flopping before deciding
+    how much weight to give a news catalyst that conflicts with the current TA
+    direction. Read-only, best-effort — returns [] on any failure."""
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/call_snapshots"
+        headers = get_supabase_headers()
+        params = {
+            "symbol": f"eq.{symbol}",
+            "order": "run_ts.desc",
+            "limit": str(limit),
+            "select": "run_ts,direction,confidence_tier,candidate_score,fa_score",
+        }
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        return response.json() or []
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        log_error(f"Failed to load track record for {symbol}", e)
+        return []
+
+
 def trigger_async(path: str, params: Dict = None):
     """Fire-and-forget POST to one of our own backend stage endpoints. Sends the
     request (which invokes the target serverless function) but does not wait for
