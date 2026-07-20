@@ -336,6 +336,12 @@ def score_candidates(candidates: List[Dict]) -> List[Dict]:
     client = anthropic.Anthropic(api_key=api_key, max_retries=3, timeout=120.0)
     feed = get_feed_snapshot()  # shared across ALL batches in the run (cached)
 
+    # Lazy import: agent4_graph imports FROM this module (reuses _classify/parse_fa
+    # rather than duplicating them), so importing it at module load time here would
+    # be circular. By the time score_candidates() actually runs, this module is
+    # fully initialized, so the import is safe.
+    from .agent4_graph import classify_with_reconciliation
+
     def score(c):
         # Skip Neutral coins — nothing to enrich.
         if c.get("direction", "Neutral") == "Neutral":
@@ -346,7 +352,10 @@ def score_candidates(candidates: List[Dict]) -> List[Dict]:
         if not headlines:
             fa = dict(NEUTRAL_FA)  # no matching news → neutral, no model call (free)
         else:
-            fa = _classify(client, c.get("name", ""), c.get("symbol", "?"), headlines)
+            fa = classify_with_reconciliation(
+                client, c.get("name", ""), c.get("symbol", "?"),
+                headlines, c.get("direction", "Neutral"),
+            )
         m = {**c, **fa}
         combine_ta_fa(m)
         if fa["catalyst"] != "none" or fa["fa_score"] != 0.0:
