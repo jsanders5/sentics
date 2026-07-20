@@ -9,10 +9,17 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     permissions:
       contents: read
       pull-requests: write
       issues: write
+      id-token: write  # required: the action uses this to fetch a GitHub OIDC
+                        # token for its own GitHub App auth, independent of the
+                        # ANTHROPIC_API_KEY (which only authenticates the model call)
     steps:
       - uses: actions/checkout@v4
 
