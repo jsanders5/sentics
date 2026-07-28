@@ -10,8 +10,10 @@ import { NextApiRequest, NextApiResponse } from "next";
 const BASE = "https://lunarcrush.com/api4/public";
 const UA = "Mozilla/5.0 (compatible; sentics/1.0)";
 
+// `path` must already be URL-safe (encode dynamic segments at the call site) —
+// encoding the whole path would escape the slashes and 404.
 async function lc(path: string, key: string) {
-  const r = await fetch(`${BASE}/${encodeURIComponent(path)}`, {
+  const r = await fetch(`${BASE}/${path}`, {
     headers: { Authorization: `Bearer ${key}`, "User-Agent": UA },
   });
   if (!r.ok) throw new Error(`LunarCrush ${path} → ${r.status}`);
@@ -41,11 +43,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const key = process.env.LUNARCRUSH_API_KEY;
   if (!key) return res.status(200).json({ unavailable: true });
 
+  const t = encodeURIComponent(topic); // encode ONLY the topic segment (may contain spaces)
   try {
     const [detail, news, posts] = await Promise.all([
-      lc(`topic/${topic}/v1`, key).catch(() => ({})),
-      lc(`topic/${topic}/news/v1`, key).catch(() => []),
-      lc(`topic/${topic}/posts/v1`, key).catch(() => []),
+      lc(`topic/${t}/v1`, key).catch(() => ({})),
+      lc(`topic/${t}/news/v1`, key).catch(() => []),
+      lc(`topic/${t}/posts/v1`, key).catch(() => []),
     ]);
     return res.status(200).json({
       trend: detail?.trend,
