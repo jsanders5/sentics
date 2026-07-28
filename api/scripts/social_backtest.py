@@ -180,15 +180,20 @@ def build(series_by_sym):
     return coins
 
 
-def run(coins, horizon, stride, q, cost_bps):
-    days = sorted({d for _, dm in coins.values() for d in dm})
+def run(coins, horizon, stride, q, cost_bps, day_lo=None, day_hi=None, coin_subset=None):
+    items = {s: v for s, v in coins.items() if coin_subset is None or s in coin_subset}
+    days = sorted({d for _, dm in items.values() for d in dm})
+    if not days:
+        return {}, defaultdict(lambda: ([], [])), 0
+    lo = day_lo if day_lo is not None else days[0]
+    hi = day_hi if day_hi is not None else days[-1]
     results = {}
     pooled = defaultdict(lambda: ([], []))  # signal -> (signal_vals, fwd_rets)
     for name, fn in SIGNALS.items():
         periods = []
-        for D in range(days[0], days[-1] + 1, stride):
+        for D in range(lo, hi + 1, stride):
             rows = []
-            for sym, (series, dm) in coins.items():
+            for sym, (series, dm) in items.items():
                 if D not in dm or (D + horizon) not in dm:
                     continue
                 i = dm[D]
@@ -204,6 +209,15 @@ def run(coins, horizon, stride, q, cost_bps):
                 sv.append(sig); fv.append(fwd)
             if len(rows) < 8:
                 continue
+            # Winsorize forward returns to the 2.5/97.5 percentile of THIS
+            # rebalance's cross-section — junk small-caps produce 100x "returns"
+            # that otherwise dominate the equal-weight long-short and make the
+            # aggregates meaningless. Caps the tails without dropping coins.
+            fw = sorted(r[1] for r in rows)
+            def _pct(p):
+                return fw[min(len(fw) - 1, max(0, int(p * len(fw))))]
+            lo_c, hi_c = _pct(0.025), _pct(0.975)
+            rows = [(sig, min(hi_c, max(lo_c, fwd))) for sig, fwd in rows]
             rows.sort(key=lambda r: r[0])
             k = max(1, int(len(rows) * q))
             short_r = sum(r[1] for r in rows[:k]) / k
@@ -212,6 +226,12 @@ def run(coins, horizon, stride, q, cost_bps):
             periods.append(ls - 4 * (cost_bps / 1e4))  # net of cost
         results[name] = periods
     return results, pooled, len(days)
+
+
+def t_map(coins, horizon, stride, q, cost_bps, **kw):
+    """{signal: long-short t-stat} for a given horizon / date-window / coin subset."""
+    res, _, _ = run(coins, horizon, stride, q, cost_bps, **kw)
+    return {n: (_stats(p) or {}).get("t") for n, p in res.items()}
 
 
 def main():
@@ -262,17 +282,62 @@ def main():
         print(f"  {name:26} {st['n']:4} {st['mean']*100:+8.2f}% {st['sharpe']:+7.2f} {st['t']:+6.2f} "
               f"{st['hit']*100:4.0f}% {cum*100:+7.1f}% {mdd*100:5.0f}% {corr:+6.3f}")
 
-    base = _stats(results.get("[price_mom30 baseline]", []))
-    base_t = (base or {}).get("t") or 0
-    winners = [n for n, p in results.items() if not n.startswith("[") and (_stats(p) or {}).get("t", -9) > 2
-               and (_stats(p) or {}).get("t", -9) > base_t]
+    # Focus set: the leads (both momentum + contrarian) + baseline.
+    FOCUS = ["contributors velocity14", "interactions velocity14", "posts velocity14",
+             "sentiment (level)", "galaxy (level)", "altrank (inv level)",
+             "[price_mom30 baseline]"]
+
+    # ── Horizon sweep — does the attention signal sharpen at other holds? ──
     print("\n" + "-" * 82)
-    if winners:
-        print(f"CANDIDATES that beat zero (t>2) AND the price baseline: {', '.join(winners)}")
-        print("→ Worth wiring in (calibrated) + validating live. Still one window — not proof.")
+    print("HORIZON SWEEP (long-short t-stat by holding period)")
+    print("-" * 82)
+    hs = {h: t_map(coins, h, args.stride, args.q, args.cost_bps) for h in (3, 7, 14, 30)}
+    print(f"  {'signal':26} {'h=3':>7} {'h=7':>7} {'h=14':>7} {'h=30':>7}")
+    for name in FOCUS:
+        cells = " ".join(f"{(hs[h].get(name) if hs[h].get(name) is not None else float('nan')):+7.2f}" for h in (3, 7, 14, 30))
+        print(f"  {name:26} {cells}")
+
+    # ── Out-of-sample: time halves + market-cap halves ──
+    all_days = sorted({d for _, dm in coins.values() for d in dm})
+    mid = all_days[len(all_days) // 2]
+    uni_syms = [s for s, _ in uni if s in coins]
+    half = len(uni_syms) // 2
+    large, small = set(uni_syms[:half]), set(uni_syms[half:])  # uni is market-cap desc
+    early = t_map(coins, args.horizon, args.stride, args.q, args.cost_bps, day_hi=mid)
+    late = t_map(coins, args.horizon, args.stride, args.q, args.cost_bps, day_lo=mid)
+    capL = t_map(coins, args.horizon, args.stride, args.q, args.cost_bps, coin_subset=large)
+    capS = t_map(coins, args.horizon, args.stride, args.q, args.cost_bps, coin_subset=small)
+    print("\n" + "-" * 82)
+    print(f"OUT-OF-SAMPLE (long-short t-stat, h={args.horizon}) — a real signal holds across splits")
+    print("-" * 82)
+    print(f"  {'signal':26} {'time-1st':>8} {'time-2nd':>8} {'lgcap':>7} {'smcap':>7}")
+    for name in FOCUS:
+        def c(m):
+            v = m.get(name)
+            return f"{v:+7.2f}" if v is not None else "    n/a"
+        print(f"  {name:26} {c(early):>8} {c(late):>8} {c(capL):>7} {c(capS):>7}")
+
+    # ── Verdict: a signal is usable if its SIGN is consistent across both time
+    #    halves AND |t|>2 at some horizon — reported as momentum or CONTRARIAN. ──
+    print("\n" + "-" * 82)
+    def classify(n):
+        e, l = early.get(n), late.get(n)
+        ts = [hs[h].get(n) for h in (3, 7, 14, 30) if hs[h].get(n) is not None]
+        if e is None or l is None or not ts:
+            return None
+        if e > 0 and l > 0 and max(ts) > 2:
+            return "momentum (long the high)"
+        if e < 0 and l < 0 and min(ts) < -2:
+            return "CONTRARIAN (fade the high)"
+        return None
+    leads = [(n, classify(n)) for n in FOCUS if not n.startswith("[") and classify(n)]
+    if leads:
+        for n, kind in leads:
+            print(f"USABLE: {n} → {kind}")
+        print("→ Sign-consistent across time halves and significant at some horizon. Worth wiring")
+        print("  in as a SMALL, EXPERIMENTAL, calibrated tilt + validating live. Not proof (1 window).")
     else:
-        print("NO social signal beats both zero (t>2) and the price_mom baseline on this window.")
-        print("→ Social does not add demonstrable edge here. Do NOT wire it into the calls yet.")
+        print("No signal is sign-consistent across time halves AND significant — keep display-only.")
     print("=" * 82)
 
 
