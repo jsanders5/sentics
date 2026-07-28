@@ -12,7 +12,7 @@ import { isStale, STALE_HOURS } from "@/app/lib/freshness";
 import { Candidate, BearishView } from "@/app/types";
 
 export default function DashboardPage() {
-  const { candidates, loading, error, timestamp, faProgress, refetch } = useCandidates();
+  const { candidates, loading, error, timestamp, refetch } = useCandidates();
   const {
     filters,
     sortKey,
@@ -48,12 +48,10 @@ export default function DashboardPage() {
       setTimeout(() => setToast(null), 6000);
       return;
     }
-    setToast({ type: "success", text: "Run started — updating prices & technicals…" });
+    setToast({ type: "success", text: "Run started — updating prices, technicals & social…" });
 
-    // The run is async: TA persists fast (timestamp advances, fa_score reset to
-    // null), then FA self-chains and fills fa_score in coin-by-coin. We derive
-    // progress from that — spinner + status stay until every directional coin is
-    // scanned (or the deadline).
+    // The run is async server-side: it persists the fresh set (TA + social) in one
+    // Stage-1 write, then the timestamp advances. Poll until it does, then refresh.
     const deadline = Date.now() + 6 * 60 * 1000;
     const finish = (text: string) => {
       setRefreshing(false);
@@ -64,16 +62,9 @@ export default function DashboardPage() {
       try {
         const r = await fetch("/api/candidates");
         const d = await r.json();
-        const list: Candidate[] = d.candidates || [];
-        const taLanded = d.timestamp && d.timestamp !== before;
-        if (taLanded) {
-          await refetch(); // show fresh TA + any FA filled in so far
-          const directional = list.filter((c) => c.direction === "Bullish" || c.direction === "Bearish");
-          const scanned = directional.filter((c) => typeof c.fa_score === "number").length;
-          const total = directional.length;
-          if (total === 0) return finish("Data updated.");
-          if (scanned >= total) return finish(`Data updated — news analyzed for ${total} coins.`);
-          setToast({ type: "success", text: `Analyzing news… ${scanned}/${total} coins` });
+        if (d.timestamp && d.timestamp !== before) {
+          await refetch();
+          return finish("Data updated.");
         }
       } catch {
         /* transient — keep polling */
@@ -88,7 +79,7 @@ export default function DashboardPage() {
     return (
       <ErrorBoundary>
         <div className="flex h-screen flex-col" style={{ backgroundColor: 'var(--bg-base)' }}>
-          <Header timestamp={timestamp} onRefresh={handleRefresh} refreshing={refreshing} faProgress={faProgress} />
+          <Header timestamp={timestamp} onRefresh={handleRefresh} refreshing={refreshing} />
           <div className="flex flex-1 items-center justify-center p-6">
             <div className="max-w-md text-center space-y-4">
               <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>Unable to Load Data</h2>
@@ -114,7 +105,7 @@ export default function DashboardPage() {
   return (
     <ErrorBoundary>
       <div className="flex h-screen flex-col" style={{ backgroundColor: 'var(--bg-base)' }}>
-        <Header timestamp={timestamp} onRefresh={handleRefresh} refreshing={refreshing} faProgress={faProgress} />
+        <Header timestamp={timestamp} onRefresh={handleRefresh} refreshing={refreshing} />
 
         {/* Centered content column */}
         <div className="flex flex-1 flex-col overflow-hidden">

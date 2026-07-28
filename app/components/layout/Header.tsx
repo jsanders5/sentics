@@ -4,20 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { formatAgo, isStale } from "@/app/lib/freshness";
-import type { FaProgress } from "@/app/hooks/useCandidates";
 
 interface HeaderProps {
   timestamp?: string | null;
   onRefresh?: () => void;
   refreshing?: boolean;
-  faProgress?: FaProgress;
 }
 
 const navLinks = [
   { href: "/", label: "Dashboard" },
 ];
 
-export function Header({ timestamp, onRefresh, refreshing, faProgress }: HeaderProps) {
+export function Header({ timestamp, onRefresh, refreshing }: HeaderProps) {
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const pathname = usePathname();
   const stale = isStale(timestamp);
@@ -47,20 +45,6 @@ export function Header({ timestamp, onRefresh, refreshing, faProgress }: HeaderP
           </div>
 
           <div className="flex items-center gap-3 md:gap-4">
-            {faProgress?.active && (
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border animate-card-in"
-                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--accent)' }}
-                title="Fetching and analyzing the latest news for directional coins"
-                aria-live="polite"
-              >
-                <span className="inline-block animate-spin text-xs" style={{ color: 'var(--accent)' }} aria-hidden>↻</span>
-                <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--accent)' }}>
-                  <span className="hidden sm:inline">Analyzing news… </span>
-                  {faProgress.scanned}/{faProgress.total}
-                </span>
-              </div>
-            )}
             <div
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
               style={{
