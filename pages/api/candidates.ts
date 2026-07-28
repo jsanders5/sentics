@@ -129,6 +129,7 @@ export default async function handler(
       trade_plan: c.trade_plan,
       ohlc: Array.isArray(c.ohlc) ? c.ohlc : undefined,
       tv_symbol: typeof c.tv_symbol === 'string' ? c.tv_symbol : undefined,
+      social: c.social && typeof c.social === 'object' ? c.social : undefined,
       fa_score: typeof c.fa_score === 'number' ? c.fa_score : undefined,
       sentiment: typeof c.sentiment === 'number' ? c.sentiment : undefined,
       catalyst: c.catalyst,

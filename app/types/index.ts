@@ -63,6 +63,7 @@ export interface Candidate {
   trade_plan?: TradePlan;
   ohlc?: Candle[];          // ~30 daily candles for the card mini-chart
   tv_symbol?: string;       // resolved TradingView symbol, e.g. "BINANCE:FETUSDT"
+  social?: Social;          // LunarCrush social read (display-only)
   // Fundamental analysis (news/catalyst) — Agent 4
   fa_score?: number;        // sentiment × magnitude, [-1, 1]
   sentiment?: number;       // [-1, 1]
@@ -75,6 +76,37 @@ export interface Candidate {
 export interface FaSource {
   title?: string;
   url: string;
+}
+
+// LunarCrush social read (per coin), stored on the candidate. Display-only.
+export interface Social {
+  sentiment?: number;        // 0–100 (50 ≈ neutral)
+  galaxy_score?: number;     // 0–100 composite
+  galaxy_delta?: number;     // change vs previous
+  alt_rank?: number;         // lower = hotter
+  alt_rank_delta?: number;   // +ve = improving
+  social_dominance?: number; // % of total crypto social volume
+  social_volume_24h?: number;
+  interactions_24h?: number;
+  topic?: string;            // LunarCrush topic key for the evidence lookup
+}
+
+// Evidence behind the sentiment (lazy-loaded from /api/social-detail).
+export interface SocialItem {
+  title?: string;
+  link?: string;
+  type?: string;
+  sentiment?: number | string; // 1–5 scale (3 ≈ neutral)
+  creator?: string;
+  interactions?: number | string;
+}
+export interface SocialEvidence {
+  trend?: string;
+  num_posts?: number;
+  num_contributors?: number;
+  types_sentiment?: Record<string, number>; // per-platform 0–100
+  news?: SocialItem[];
+  posts?: SocialItem[];
 }
 
 export interface PipelineRun {

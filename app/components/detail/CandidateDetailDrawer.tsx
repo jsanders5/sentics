@@ -7,6 +7,7 @@ import { HorizonBadge } from "@/app/components/shared/HorizonBadge";
 import { DirectionBadge } from "@/app/components/shared/DirectionBadge";
 import { ScoreRing } from "@/app/components/shared/ScoreRing";
 import { TradePlanDetail } from "@/app/components/trade/TradePlan";
+import { SocialPanel } from "@/app/components/detail/SocialPanel";
 
 // Assets widely treated as commodities (not securities) — others get an extra
 // regulatory-status caveat since their classification is unsettled.
@@ -150,71 +151,8 @@ export function CandidateDetailDrawer({
             </div>
           )}
 
-          {/* Catalyst / News (fundamental analysis) */}
-          {candidate.catalyst && candidate.catalyst !== "none" && candidate.fa_summary && (
-            <div className="space-y-2 border-t border-[--border] pt-6">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">
-                  Catalyst / News
-                </h3>
-                {typeof candidate.sentiment === "number" && (
-                  <span
-                    className="text-xs font-semibold font-mono"
-                    style={{
-                      color: candidate.sentiment > 0.05 ? "var(--bullish)"
-                        : candidate.sentiment < -0.05 ? "var(--bearish)" : "var(--text-muted)",
-                    }}
-                    title="News sentiment (−1 bearish … +1 bullish)"
-                  >
-                    {candidate.sentiment > 0 ? "+" : ""}{candidate.sentiment.toFixed(2)}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold"
-                  style={{ backgroundColor: "var(--bg-raised)", borderColor: "var(--border)", color: "var(--text-secondary)" }}
-                >
-                  {candidate.catalyst}
-                </span>
-                {candidate.fa_confidence && <ConfidenceBadge tier={candidate.fa_confidence} size="sm" />}
-              </div>
-              <p className="text-sm leading-relaxed text-[--text-primary]">{candidate.fa_summary}</p>
-              {candidate.fa_sources && candidate.fa_sources.length > 0 && (
-                <div className="space-y-1 pt-1">
-                  {candidate.fa_sources.slice(0, 3).map((s, i) => (
-                    <a
-                      key={i}
-                      href={s.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block truncate text-xs text-[--accent] hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      ↗ {s.title || s.url}
-                    </a>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs text-[--text-muted] italic">
-                News-based signal; complements the technical read. Not investment advice.
-              </p>
-            </div>
-          )}
-
-          {/* Scanned, but no notable catalyst (directional coins only — Neutral
-              coins aren't scanned, so they show nothing here). */}
-          {(!candidate.catalyst || candidate.catalyst === "none") &&
-            typeof candidate.fa_score === "number" && (
-              <div className="space-y-2 border-t border-[--border] pt-6">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">
-                  Catalyst / News
-                </h3>
-                <p className="text-sm text-[--text-muted] italic">
-                  No major news catalyst found in recent headlines.
-                </p>
-              </div>
-            )}
+          {/* Social & Sentiment (LunarCrush) — descriptive context + evidence */}
+          <SocialPanel social={candidate.social} symbol={candidate.symbol} />
 
           {/* Technical Signals */}
           <div className="space-y-3 border-t border-[--border] pt-6">
