@@ -352,6 +352,7 @@ def insert_candidates(candidates: List[Dict]):
                 "trade_plan": candidate.get("trade_plan"),
                 "ohlc": candidate.get("ohlc"),
                 "tv_symbol": candidate.get("tv_symbol"),
+                "social": candidate.get("social"),
                 "fa_score": candidate.get("fa_score"),
                 "sentiment": candidate.get("sentiment"),
                 "catalyst": candidate.get("catalyst"),
@@ -450,6 +451,35 @@ def insert_fa_snapshots(rows: List[Dict]):
     except Exception as e:
         sentry_sdk.capture_exception(e)
         log_error("Failed to append FA snapshots", e)
+
+
+def insert_social_snapshots(rows: List[Dict]):
+    """APPEND point-in-time social snapshots (one row per coin per run). Never
+    upserts — the immutable corpus for backtesting whether social velocity predicts
+    returns. Non-fatal: must not break the run."""
+    if not rows:
+        return
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/social_snapshots"
+        headers = get_supabase_headers()
+        payload = [
+            {
+                "run_ts": r.get("run_ts"), "symbol": r.get("symbol"), "name": r.get("name"),
+                "price": r.get("price"), "sentiment": r.get("sentiment"),
+                "galaxy_score": r.get("galaxy_score"), "galaxy_delta": r.get("galaxy_delta"),
+                "alt_rank": r.get("alt_rank"), "alt_rank_delta": r.get("alt_rank_delta"),
+                "social_dominance": r.get("social_dominance"),
+                "social_volume_24h": r.get("social_volume_24h"),
+                "interactions_24h": r.get("interactions_24h"),
+            }
+            for r in rows
+        ]
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        log_info(f"Appended {len(payload)} social snapshots")
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        log_error("Failed to append social snapshots", e)
 
 
 def insert_call_snapshots(rows: List[Dict]):

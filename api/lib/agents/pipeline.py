@@ -11,10 +11,11 @@ from datetime import datetime
 from typing import Dict
 from .utils import (
     insert_candidates, delete_candidates_except, insert_fa_snapshots,
-    insert_call_snapshots, get_candidates, update_candidate_fa, trigger_async,
-    insert_pipeline_run, cache_set, cache_invalidate, log_info, log_error
+    insert_call_snapshots, insert_social_snapshots, get_candidates,
+    update_candidate_fa, trigger_async, insert_pipeline_run, cache_set,
+    cache_invalidate, log_info, log_error
 )
-from . import agent2, agent3, agent4
+from . import agent2, agent3, agent4, lunarcrush
 
 # FA stage runs in small self-chaining batches so no single serverless invocation
 # exceeds the function time limit (web search is slow).
@@ -95,6 +96,7 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "trade_plan": c.get("trade_plan"),
                 "ohlc": c.get("ohlc"),
                 "tv_symbol": c.get("tv_symbol"),
+                "social": c.get("social"),
                 "fa_score": c.get("fa_score"),
                 "sentiment": c.get("sentiment"),
                 "catalyst": c.get("catalyst"),
@@ -147,15 +149,35 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "total_failed": 0,
             }
 
-        # Full TA + rationale write (FA is added later by the chunked FA stage).
+        # ---- SOCIAL LAYER (LunarCrush; replaces the old RSS/Agent-4 FA stage) ----
+        # One /coins/list call returns sentiment + social metrics for the whole
+        # universe, so this lands synchronously in Stage 1 (no more chunked, self-
+        # chaining FA stage). Display-only: attached for the UI + logged point-in-
+        # time, but does NOT modulate the conviction score until validated.
         final_candidates = agent3_result.get("candidates_with_rationales", [])
+        run_ts = start_time.isoformat()
+        try:
+            reads = lunarcrush.social_read([c.get("symbol", "") for c in final_candidates])
+            for c in final_candidates:
+                c["social"] = reads.get((c.get("symbol") or "").upper())
+            log_info(f"Social read: {sum(1 for c in final_candidates if c.get('social'))}/{len(final_candidates)} coins")
+        except Exception as e:  # noqa: BLE001 — social must never break the run
+            log_error("Social read failed", e)
+
+        # Full TA + rationale + social write.
         _persist(final_candidates)
+
+        # Point-in-time social snapshots for the backtest.
+        insert_social_snapshots([
+            {"run_ts": run_ts, "symbol": c.get("symbol"), "name": c.get("name"),
+             "price": c.get("price"), **(c.get("social") or {})}
+            for c in final_candidates if c.get("social")
+        ])
 
         # ---- LIVE FORWARD-TRACKING LEDGER ----
         # Append an immutable, point-in-time row per directional call (price/levels
         # as shown now). eval_calls.py scores these against realized forward prices
         # later — the leak-free ground truth for whether the calls have live edge.
-        run_ts = start_time.isoformat()
         call_rows = []
         for c in final_candidates:
             if c.get("direction") not in ("Bullish", "Bearish"):
@@ -174,21 +196,8 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
                 "entry": plan.get("entry"),
                 "target": plan.get("target"),
                 "stop": plan.get("stop"),
-                "fa_score": c.get("fa_score"),
             })
         insert_call_snapshots(call_rows)
-
-        # ---- TRIGGER STAGE 2 (FA), fire-and-forget ----
-        # FA (web search) is too slow to fit this invocation, so it runs as its own
-        # self-chaining batched stage that PATCHes FA onto the rows we just wrote.
-        directional = sum(1 for c in agent2_result["candidates"]
-                          if c.get("direction") in ("Bullish", "Bearish"))
-        if directional:
-            # Drop any prior run's news snapshot so this run's FA batches all fetch
-            # + share a fresh point-in-time snapshot (see agent4.FEED_CACHE_KEY).
-            cache_invalidate(agent4.FEED_CACHE_KEY)
-            log_info(f"Triggering FA stage for {directional} directional candidates...")
-            trigger_async("/api/run-fa", {"offset": 0, "batch": FA_BATCH})
 
         # Invalidate old cache if needed
         cache_invalidate("candidates:stale", "categories:stale")
