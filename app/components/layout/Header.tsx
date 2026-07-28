@@ -13,6 +13,7 @@ interface HeaderProps {
 
 const navLinks = [
   { href: "/", label: "Dashboard" },
+  { href: "/trending", label: "Trending" },
 ];
 
 export function Header({ timestamp, onRefresh, refreshing }: HeaderProps) {
