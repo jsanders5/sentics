@@ -39,7 +39,29 @@ mode: do NOT tune scoring constants until live data says there's something to tu
   resume calibration; if not, keep it a screener (and weigh retiring the 0–100 number
   entirely). Multi-regime data still needs paid CoinGecko / stitched history.
 
-## Fundamental analysis (news/catalyst) — Agent 4
+## Social layer (LunarCrush) — replaces the RSS FA layer
+
+- [x] **LunarCrush integration shipped (commits dd97fc0…6bce257).** Builder-tier
+  API. One `/coins/list/v2` call/run returns sentiment + galaxy/alt_rank (+deltas)
+  for the whole universe, so social lands synchronously in Stage 1 — **retired the
+  slow chunked RSS FA stage** (`/api/run-fa` self-chain + the "Analyzing news…"
+  badge). **Display-only:** shown + logged, does NOT modulate conviction until
+  validated. Drawer gets a Social & Sentiment panel with *evidence* (per-platform
+  breakdown + top news/posts, lazy-loaded via `/api/social-detail`). New **Trending**
+  tab ranks by AltRank (`/api/trending`), clearly labelled discovery-not-screener.
+  - [ ] **SETUP before next run:** (a) run **migration 009** (`social` column +
+    `social_snapshots`); (b) set **`LUNARCRUSH_API_KEY`** in **BOTH** Vercel projects
+    — backend `sentics-agents` (pipeline social_read) and frontend `sentics-sti`
+    (the `/api/social-detail` + `/api/trending` routes).
+  - [ ] **Test social for edge (validation-first):** once `social_snapshots` accrue,
+    extend the backtest — does social *velocity* (galaxy/alt_rank/volume change)
+    predict forward returns, esp. small caps / short horizons? Only then consider
+    letting it touch the score. Note the DEMO-key gotcha (free tier returns fake data
+    + 100/day) and that LunarCrush's WAF 403s a non-browser User-Agent.
+  - [ ] **Cleanup:** the retired RSS path (`agent4.py`, `run_fa_stage`, `/api/run-fa`
+    route, `fa_*` columns) is now dead but left in place — remove in a later pass.
+
+## Fundamental analysis (news/catalyst) — Agent 4 [SUPERSEDED by LunarCrush above]
 
 - [x] **FA layer shipped (commit e945eff).** Agent 4 scans per-coin news via Claude
   web_search → `fa_score` (sentiment×magnitude) + catalyst/summary/sources; blended
