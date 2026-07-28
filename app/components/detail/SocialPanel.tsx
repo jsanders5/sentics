@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Social, SocialEvidence, SocialItem } from "@/app/types";
+import { tip } from "@/app/lib/metrics";
 
 // LunarCrush aggregate sentiment is 0–100 (≈50 neutral).
 function sentColor(v?: number): string {
@@ -21,9 +22,9 @@ function fmtNum(n?: number): string {
   return `${n}`;
 }
 
-function Metric({ label, value, delta, color }: { label: string; value: string; delta?: number; color?: string }) {
+function Metric({ label, value, delta, color, title }: { label: string; value: string; delta?: number; color?: string; title?: string }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col cursor-help" title={title}>
       <span className="text-[10px] uppercase tracking-wider text-[--text-muted]">{label}</span>
       <span className="font-mono text-sm font-semibold" style={{ color: color || "var(--text-primary)" }}>
         {value}
@@ -52,7 +53,7 @@ function ItemList({ title, items }: { title: string; items?: SocialItem[] }) {
           className="flex items-start gap-2 text-xs hover:underline"
           style={{ color: "var(--text-primary)" }}
         >
-          <span aria-hidden style={{ color: postColor(it.sentiment) }}>●</span>
+          <span className="cursor-help" title={tip("post_sentiment")} style={{ color: postColor(it.sentiment) }}>●</span>
           <span className="min-w-0">
             <span className="line-clamp-2">{it.title || it.link}</span>
             {it.creator && <span className="text-[--text-muted]"> — {it.creator}</span>}
@@ -98,18 +99,18 @@ export function SocialPanel({ social, symbol }: { social?: Social; symbol: strin
 
       {/* Summary metrics */}
       <div className="grid grid-cols-3 gap-3">
-        <Metric label="Sentiment" value={typeof social.sentiment === "number" ? `${Math.round(social.sentiment)}` : "—"} color={sentColor(social.sentiment)} />
-        <Metric label="Galaxy" value={typeof social.galaxy_score === "number" ? `${social.galaxy_score}` : "—"} delta={social.galaxy_delta} />
-        <Metric label="AltRank" value={typeof social.alt_rank === "number" ? `#${Math.round(social.alt_rank)}` : "—"} delta={social.alt_rank_delta} />
-        <Metric label="Soc. Dom." value={typeof social.social_dominance === "number" ? `${social.social_dominance.toFixed(1)}%` : "—"} />
-        <Metric label="Soc. Vol." value={fmtNum(social.social_volume_24h)} />
-        <Metric label="Interactions" value={fmtNum(social.interactions_24h)} />
+        <Metric label="Sentiment" value={typeof social.sentiment === "number" ? `${Math.round(social.sentiment)}` : "—"} color={sentColor(social.sentiment)} title={tip("sentiment")} />
+        <Metric label="Galaxy" value={typeof social.galaxy_score === "number" ? `${social.galaxy_score}` : "—"} delta={social.galaxy_delta} title={tip("galaxy_score")} />
+        <Metric label="AltRank" value={typeof social.alt_rank === "number" ? `#${Math.round(social.alt_rank)}` : "—"} delta={social.alt_rank_delta} title={tip("alt_rank")} />
+        <Metric label="Soc. Dom." value={typeof social.social_dominance === "number" ? `${social.social_dominance.toFixed(1)}%` : "—"} title={tip("social_dominance")} />
+        <Metric label="Soc. Vol." value={fmtNum(social.social_volume_24h)} title={tip("social_volume_24h")} />
+        <Metric label="Interactions" value={fmtNum(social.interactions_24h)} title={tip("interactions_24h")} />
       </div>
 
       {/* Platform breakdown (the "why") */}
       {platforms.length > 0 && (
         <div className="space-y-1 pt-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[--text-muted]">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[--text-muted] cursor-help" title={tip("platform_sentiment")}>
             Sentiment by platform{evidence?.trend ? ` · trend ${evidence.trend}` : ""}
           </p>
           {platforms.map(([name, val]) => (

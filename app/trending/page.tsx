@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { Header } from "@/app/components/layout/Header";
 import { formatPrice } from "@/app/lib/format";
+import { tip } from "@/app/lib/metrics";
 
 interface TrendingCoin {
   symbol: string;
@@ -77,8 +78,12 @@ export default function TrendingPage() {
                 <div className="space-y-1.5">
                   {/* header row */}
                   <div className="hidden sm:grid grid-cols-[2.5rem_1fr_6rem_5rem_5rem_5rem] gap-3 px-3 text-[10px] uppercase tracking-wider text-[--text-muted]">
-                    <span>#</span><span>Asset</span><span className="text-right">Price</span>
-                    <span className="text-right">24h</span><span className="text-right">Galaxy</span><span className="text-right">Sent.</span>
+                    <span className="cursor-help" title={tip("alt_rank")}>#</span>
+                    <span>Asset</span>
+                    <span className="text-right cursor-help" title={tip("price")}>Price</span>
+                    <span className="text-right">24h</span>
+                    <span className="text-right cursor-help" title={tip("galaxy_score")}>Galaxy</span>
+                    <span className="text-right cursor-help" title={tip("sentiment")}>Sent.</span>
                   </div>
                   {coins.map((c, i) => (
                     <a
