@@ -8,6 +8,7 @@
   --bg-hover: #232d47;
   --border: #2a3456;
   --border-light: #3a4566;
+  --header-bg: rgba(10, 14, 39, 0.72); /* glassy sticky header */
 
   --text-primary: #ffffff;
   --text-secondary: #a1a8c1;
@@ -231,6 +232,7 @@ select:focus {
     --bg-hover: #d1d5db;
     --border: #cbd5e1;
     --border-light: #94a3b8;
+    --header-bg: rgba(248, 250, 252, 0.8); /* glassy light header */
 
     --text-primary: #0f172a;
     --text-secondary: #475569;

@@ -28,7 +28,7 @@ export function Header({ timestamp, onRefresh, refreshing }: HeaderProps) {
       <header
         className="sticky top-0 z-40"
         style={{
-          backgroundColor: 'rgba(10, 14, 39, 0.72)',
+          backgroundColor: 'var(--header-bg)',
           backdropFilter: 'blur(14px)',
           WebkitBackdropFilter: 'blur(14px)',
           borderBottom: '1px solid var(--border)',
