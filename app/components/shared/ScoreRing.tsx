@@ -9,7 +9,7 @@ interface ScoreRingProps {
 // Score is a magnitude (signal strength), not a direction — so it keeps a
 // blue→green→amber scale independent of the Bullish/Bearish color language.
 function scoreColor(score: number): string {
-  if (score >= 85) return "#58A6FF";
+  if (score >= 85) return "var(--score-elite)";
   if (score >= 70) return "var(--high)";
   if (score >= 55) return "var(--medium)";
   return "var(--text-muted)";
