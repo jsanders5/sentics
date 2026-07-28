@@ -50,3 +50,6 @@ temp/
 # Backtest data cache
 api/scripts/.backtest_cache/
 backtest_*.csv
+
+# Backtest data caches
+api/scripts/.social_cache/
