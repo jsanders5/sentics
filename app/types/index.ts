@@ -64,18 +64,6 @@ export interface Candidate {
   ohlc?: Candle[];          // ~30 daily candles for the card mini-chart
   tv_symbol?: string;       // resolved TradingView symbol, e.g. "BINANCE:FETUSDT"
   social?: Social;          // LunarCrush social read (display-only)
-  // Fundamental analysis (news/catalyst) — Agent 4
-  fa_score?: number;        // sentiment × magnitude, [-1, 1]
-  sentiment?: number;       // [-1, 1]
-  catalyst?: string;        // short label, or "none"
-  fa_summary?: string;
-  fa_confidence?: ConfidenceTier;
-  fa_sources?: FaSource[];
-}
-
-export interface FaSource {
-  title?: string;
-  url: string;
 }
 
 // LunarCrush social read (per coin), stored on the candidate. Display-only.

@@ -20,14 +20,14 @@ sys.path.insert(0, app_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from lib.agents.pipeline import run_pipeline, run_fa_stage
+from lib.agents.pipeline import run_pipeline
 
 app = FastAPI()
 
 
 @app.post("/api/run-pipeline")
 async def trigger_pipeline(trigger_type: str = Query("manual")):
-    """Stage 1: TA + rationale + persist, then fire-and-forget the FA stage."""
+    """Run the pipeline: TA + rationale + social, persisted in one pass."""
     try:
         result = run_pipeline(trigger_type=trigger_type)
 
@@ -37,7 +37,7 @@ async def trigger_pipeline(trigger_type: str = Query("manual")):
                 content={
                     "status": "success",
                     "run_id": result.get("run_id"),
-                    "message": f"Candidates: {result['summary'].get('candidates_discovered', 0)}; FA enrichment running asynchronously.",
+                    "message": f"Candidates: {result['summary'].get('candidates_discovered', 0)}.",
                 }
             )
         else:
@@ -55,15 +55,3 @@ async def trigger_pipeline(trigger_type: str = Query("manual")):
             status_code=500,
             content={"status": "error", "error": error_msg}
         )
-
-
-@app.post("/api/run-fa")
-async def trigger_fa(offset: int = Query(0), batch: int = Query(5)):
-    """Stage 2 (chunked, self-chaining): FA-enrich one batch of candidates."""
-    try:
-        result = run_fa_stage(offset=offset, batch=batch)
-        return JSONResponse(status_code=200, content=result)
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[ERROR] FA stage failed: {error_msg}", flush=True)
-        return JSONResponse(status_code=500, content={"status": "error", "error": error_msg})
