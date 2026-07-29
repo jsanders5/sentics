@@ -1,0 +1,77 @@
+name: Weekly monitor digest
+
+# Autonomous monitoring that sidesteps the CCR egress block: GitHub runners have
+# open outbound network, so this can reach the /api/monitor endpoint. Posts the
+# digest to the Actions run summary AND a comment on a tracking issue (which
+# emails you via GitHub notifications).
+#
+# Setup: add repo secret MONITOR_TOKEN (Settings → Secrets and variables →
+# Actions) = the same value set in the sentics-sti Vercel project.
+
+on:
+  schedule:
+    - cron: "0 14 * * 1" # Mondays 14:00 UTC (8am America/Denver)
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Fetch + format digest
+        env:
+          MONITOR_TOKEN: ${{ secrets.MONITOR_TOKEN }}
+        run: |
+          set -uo pipefail
+          # Token passed as a header (not the URL) so it never lands in logs.
+          code=$(curl -s -o digest.json -w "%{http_code}" \
+            -H "x-monitor-token: ${MONITOR_TOKEN}" \
+            "https://sentics-sti.vercel.app/api/monitor")
+          echo "HTTP $code"
+          python3 - "$code" > digest.md <<'PY'
+          import json, sys
+          code = sys.argv[1]
+          try:
+              d = json.load(open("digest.json"))
+          except Exception:
+              print(f"## ⚠️ Monitor unreachable (HTTP {code})\n\nCould not parse a response.")
+              sys.exit(0)
+          if "error" in d:
+              print(f"## ⚠️ Monitor error (HTTP {code})\n\n`{d['error']}`")
+              sys.exit(0)
+          h, a, t, e = d["health"], d["accrual"], d["tilt"], d["edge"]
+          L = [f"## 🔭 Sentics weekly monitor — {d['generated_at'][:10]}", ""]
+          if h.get("stale"):
+              L.append(f"**⚠️ DATA STALE** — {h.get('hours_ago') or 0:.0f}h since last update; the daily pipeline may not be running.")
+          else:
+              L.append(f"**Pipeline:** ✅ fresh ({h.get('hours_ago') or 0:.0f}h ago) · {h['candidates']} candidates ({h['directional']} directional)")
+          L.append(f"**Accrual:** call_snapshots {a['call_snapshots']} ({a['matured_7d']} ≥7d, {a['matured_30d']} ≥30d) · social_snapshots {a['social_snapshots']}")
+          er = " · ".join(f"h={x['horizon']}d t={'—' if x['t'] is None else format(x['t'],'+.2f')} ({x['matured']} matured)" for x in e)
+          L.append(f"**Live edge (leak-free, directional):** {er}")
+          if any(x["t"] is not None and x["t"] < -2 for x in e):
+              L.append("> ⚠️ Calls remain anti-predictive (negative t). This is the raw directional edge — screener, not signals.")
+          L.append(f"**Contrarian tilt:** {t['tilted']}/{t['total_directional']} coins tilted"
+                   + (f" · hottest {t['hottest']['symbol']} (z {t['hottest']['heat_z']:+.2f}, conv {t['hottest']['adj']:+.1f})" if t.get("hottest") else ""))
+          L.append("**Tilt validation:** needs ~30+ matured social-era calls (social began ~late Jul 2026) — weeks out before the tilt can be judged.")
+          print("\n\n".join(L))
+          PY
+          cat digest.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post to tracking issue
+        run: |
+          set -uo pipefail
+          num=$(gh issue list -R "$GITHUB_REPOSITORY" --state all \
+            --search '"Weekly monitor digest" in:title' --json number --jq '.[0].number // empty')
+          if [ -z "$num" ]; then
+            url=$(gh issue create -R "$GITHUB_REPOSITORY" \
+              --title "🔭 Weekly monitor digest" \
+              --body "Automated weekly sentics monitoring digest — a new comment lands here each Monday.")
+            num=$(echo "$url" | grep -oE '[0-9]+$')
+          fi
+          gh issue comment "$num" -R "$GITHUB_REPOSITORY" --body-file digest.md
+          echo "Posted to issue #$num"
