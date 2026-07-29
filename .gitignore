@@ -53,3 +53,4 @@ backtest_*.csv
 
 # Backtest data caches
 api/scripts/.social_cache/
+api/scripts/.strategy_cache/
