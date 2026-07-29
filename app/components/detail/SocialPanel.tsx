@@ -125,6 +125,23 @@ export function SocialPanel({ social, symbol }: { social?: Social; symbol: strin
         </div>
       )}
 
+      {/* Contrarian tilt — transparency on how social touched the conviction score */}
+      {typeof social.contrarian_adj === "number" && social.contrarian_adj !== 0 && (
+        <div
+          className="rounded-md border px-2.5 py-1.5 text-xs"
+          style={{ backgroundColor: "var(--bg-raised)", borderColor: "var(--border)" }}
+          title={tip("contrarian_tilt")}
+        >
+          <span className="font-semibold" style={{ color: social.contrarian_adj < 0 ? "var(--bearish)" : "var(--bullish)" }}>
+            {social.contrarian_adj > 0 ? "+" : ""}{social.contrarian_adj} conviction
+          </span>
+          <span className="text-[--text-secondary]">
+            {" "}— contrarian tilt: this coin is {(social.heat_z ?? 0) > 0 ? "hotter" : "cooler"} than the
+            universe on social, and hyped coins have historically underperformed ~1–4 weeks.
+          </span>
+        </div>
+      )}
+
       {loading && <p className="text-xs italic text-[--text-muted]">Loading posts & news…</p>}
       <ItemList title="Top news" items={evidence?.news} />
       <ItemList title="Top posts" items={evidence?.posts} />

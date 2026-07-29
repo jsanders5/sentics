@@ -225,6 +225,16 @@ export const METRICS: MetricDef[] = [
     short: "LunarCrush's read on whether social activity for the coin is rising or falling.",
     full: "LunarCrush's directional read on the coin's social activity — whether the volume of conversation is trending up or down.",
   },
+  {
+    key: "contrarian_tilt",
+    label: "Contrarian social tilt",
+    group: "Social",
+    scale: "± conviction points",
+    source: "Sentics (from LunarCrush)",
+    short: "A small contrarian adjustment: coins hotter than the universe on social get slightly LOWER conviction (hyped coins have historically underperformed ~1–4 weeks).",
+    full: "The one social effect that survived out-of-sample backtesting was contrarian: coins with high sentiment relative to the universe underperformed over the next 1–4 weeks. So Sentics applies a small tilt — high relative social 'heat' slightly reduces bullish conviction (and nudges bearish) — based on each coin's sentiment z-score across the current set. It never flips the technical direction.",
+    caveat: "Experimental and calibrated on a single year; modest effect, being validated live via the call ledger. Not a signal to trade on.",
+  },
 ];
 
 export const metricsByKey: Record<string, MetricDef> = Object.fromEntries(

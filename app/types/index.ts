@@ -77,6 +77,8 @@ export interface Social {
   social_volume_24h?: number;
   interactions_24h?: number;
   topic?: string;            // LunarCrush topic key for the evidence lookup
+  heat_z?: number;           // sentiment z-score vs the universe (+ = crowded/hot)
+  contrarian_adj?: number;   // conviction points added/removed by the fade-euphoria tilt
 }
 
 // Evidence behind the sentiment (lazy-loaded from /api/social-detail).

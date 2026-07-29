@@ -53,11 +53,21 @@ mode: do NOT tune scoring constants until live data says there's something to tu
     `social_snapshots`); (b) set **`LUNARCRUSH_API_KEY`** in **BOTH** Vercel projects
     — backend `sentics-agents` (pipeline social_read) and frontend `sentics-sti`
     (the `/api/social-detail` + `/api/trending` routes).
-  - [ ] **Test social for edge (validation-first):** once `social_snapshots` accrue,
-    extend the backtest — does social *velocity* (galaxy/alt_rank/volume change)
-    predict forward returns, esp. small caps / short horizons? Only then consider
-    letting it touch the score. Note the DEMO-key gotcha (free tier returns fake data
-    + 100/day) and that LunarCrush's WAF 403s a non-browser User-Agent.
+  - [x] **Tested social for edge (commits 70fc84e, fcce639).** `social_backtest.py`
+    replays a year of LunarCrush daily social+price cross-sectionally (market-neutral,
+    winsorized, horizon sweep, OOS time+cap splits). Findings on 128 coins: attention
+    *velocity* is an artifact (t~0, dies OOS). The one robust, significant, OOS-consistent
+    effect is **CONTRARIAN** — high sentiment/galaxy/hot-AltRank predict UNDERperformance
+    (|t| 2–5, negative across horizons + all splits), and it beats the ~0 price baseline.
+    Pure social (sentiment level) strongest at 14–30d. (DEMO-key gotcha: free tier returns
+    fake data + 100/day; WAF 403s a non-browser UA.)
+  - [x] **Wired in a small contrarian tilt (this commit).** `agent2.apply_contrarian_social`:
+    high sentiment RELATIVE to the universe (z-score) slightly lowers bullish conviction /
+    nudges bearish — modulates magnitude only, never flips direction. Small (±~3 pts,
+    `SOCIAL_TILT_WEIGHT=10`), surfaced transparently in the drawer + glossary.
+  - [ ] **Validate the tilt live:** the call ledger logs the tilted conviction; run
+    `eval_calls.py` as snapshots mature to confirm the tilt helps out-of-sample before
+    leaning harder. Effect was weaker in the recent time-half — watch for regime decay.
   - [ ] **Cleanup:** the retired RSS path (`agent4.py`, `run_fa_stage`, `/api/run-fa`
     route, `fa_*` columns) is now dead but left in place — remove in a later pass.
 

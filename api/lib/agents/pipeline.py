@@ -130,14 +130,16 @@ def run_pipeline(trigger_type: str = "scheduled") -> Dict:
         # ---- SOCIAL LAYER (LunarCrush; replaces the old RSS/Agent-4 FA stage) ----
         # One /coins/list call returns sentiment + social metrics for the whole
         # universe, so this lands synchronously in Stage 1 (no more chunked, self-
-        # chaining FA stage). Display-only: attached for the UI + logged point-in-
-        # time, but does NOT modulate the conviction score until validated.
+        # chaining FA stage). Attached for the UI + logged point-in-time, and applies
+        # a small backtest-supported CONTRARIAN tilt to conviction (fade euphoria —
+        # see agent2.apply_contrarian_social); never flips the TA direction.
         final_candidates = agent3_result.get("candidates_with_rationales", [])
         run_ts = start_time.isoformat()
         try:
             reads = lunarcrush.social_read([c.get("symbol", "") for c in final_candidates])
             for c in final_candidates:
                 c["social"] = reads.get((c.get("symbol") or "").upper())
+            agent2.apply_contrarian_social(final_candidates)
             log_info(f"Social read: {sum(1 for c in final_candidates if c.get('social'))}/{len(final_candidates)} coins")
         except Exception as e:  # noqa: BLE001 — social must never break the run
             log_error("Social read failed", e)

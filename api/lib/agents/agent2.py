@@ -15,6 +15,7 @@ direction / timeframe / confidence values here are the source of truth.
 
 from typing import List, Dict, Tuple, Optional
 import math
+import os
 import statistics
 import time
 
@@ -337,6 +338,51 @@ def compute_candidate_score(
     if volume_ratio >= VOL_CONFIRM:
         conv += VOL_BUMP
     return round(max(0.0, min(100.0, conv)), 2)
+
+
+# EXPERIMENTAL, backtest-supported contrarian social tilt. The social backtest
+# (128 coins, 1y, OOS) found the one robust, significant effect is CONTRARIAN:
+# coins with high sentiment RELATIVE TO THE UNIVERSE underperform (~1-4wks). So
+# high relative "heat" slightly REDUCES bullish conviction / nudges bearish. It
+# modulates the conviction magnitude only — never flips the TA direction. Small
+# and one-regime; being validated live via the call ledger. Tune with SOCIAL_TILT_WEIGHT.
+SOCIAL_TILT_WEIGHT = float(os.getenv("SOCIAL_TILT_WEIGHT", "10"))
+
+
+def apply_contrarian_social(candidates: List[Dict]) -> None:
+    """Adjust conviction IN PLACE for a contrarian social tilt (fade euphoria).
+    Uses each directional coin's sentiment z-score across the CURRENT universe
+    (matching the cross-sectional backtest). No-op if <5 directional coins have
+    sentiment or the tilt is disabled (weight 0). Never changes direction."""
+    if SOCIAL_TILT_WEIGHT <= 0:
+        return
+    directional = [
+        c for c in candidates
+        if c.get("direction") in ("Bullish", "Bearish")
+        and isinstance((c.get("social") or {}).get("sentiment"), (int, float))
+    ]
+    if len(directional) < 5:
+        return
+    sents = [c["social"]["sentiment"] for c in directional]
+    mean = sum(sents) / len(sents)
+    std = math.sqrt(sum((s - mean) ** 2 for s in sents) / len(sents))
+    if std < 1e-6:
+        return
+    for c in directional:
+        z = max(-2.0, min(2.0, (c["social"]["sentiment"] - mean) / std))
+        social_score = -z / 2.0                      # contrarian: hot (z>0) → bearish pressure
+        ta = c.get("directional_score", 0.0) or 0.0
+        ta_sign = 1.0 if c["direction"] == "Bullish" else -1.0
+        aligned = social_score * ta_sign
+        adj_mag = max(0.0, min(100.0, abs(ta) + aligned * SOCIAL_TILT_WEIGHT))
+        new_score = compute_candidate_score(
+            c["direction"], ta_sign * adj_mag,
+            c.get("volume_ratio", 0.0), c.get("confidence_tier", "Medium"),
+        )
+        prev = c.get("candidate_score") or new_score
+        c["social"]["heat_z"] = round(z, 2)
+        c["social"]["contrarian_adj"] = round(new_score - prev, 1)
+        c["candidate_score"] = new_score
 
 
 def _fmt(p: float) -> str:
