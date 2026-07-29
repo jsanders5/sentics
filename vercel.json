@@ -1,8 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/run-pipeline?trigger_type=scheduled",
-      "schedule": "0 15 * * *"
-    }
-  ]
+  "_comment": "Daily pipeline cron DISABLED (no demonstrated edge — not worth the Claude/API spend). To re-enable, restore the crons array: [{ \"path\": \"/api/run-pipeline?trigger_type=scheduled\", \"schedule\": \"0 15 * * *\" }].",
+  "crons": []
 }
