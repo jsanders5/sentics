@@ -12,7 +12,11 @@ The main view ranks the top 25 crypto assets by a composite signal score (0–10
 ### Coin Detail Drawer
 Click any card to open a full analysis panel: entry/target/stop prices with R/R ratio, all contributing technical signals, social sentiment metrics (galaxy score, AltRank, platform breakdown), and a contrarian tilt disclosure when social sentiment is extreme.
 
-![Detail Drawer](public/screenshots/02_detail_drawer_800x600.png)
+![Detail Drawer 1](public/screenshots/drawer_01.png)
+
+![Detail Drawer 2](public/screenshots/drawer_02.png)
+
+![Detail Drawer 3](public/screenshots/drawer_03.png)
 
 ### Trending — Social Discovery
 LunarCrush AltRank-ranked list for discovering coins gaining social momentum before price moves. Distinct from the TA screener — a separate signal layer.
