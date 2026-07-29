@@ -21,6 +21,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 import urllib.request
 import urllib.error
@@ -60,7 +61,11 @@ def fetch_snapshots():
 
 
 def _ts(s):
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    s = s.replace("Z", "+00:00")
+    # Normalize fractional seconds to exactly 6 digits — Postgres emits variable
+    # precision (e.g. .18786) and py3.9's fromisoformat only accepts 3 or 6.
+    s = re.sub(r"\.(\d+)", lambda m: "." + (m.group(1) + "000000")[:6], s)
+    return datetime.fromisoformat(s)
 
 
 def _stats(returns):
